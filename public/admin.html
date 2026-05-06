@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - QR Pass System</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+</head>
+<body>
+    <div class="blob blob-1" style="background: #8b5cf6"></div>
+    <div class="blob blob-2" style="background: #06b6d4"></div>
+
+    <!-- Admin Login -->
+    <div id="adminLogin" class="glass-container admin-login" style="margin-top: 5rem;">
+        <h1>Admin Login</h1>
+        <p>Manage events and students</p>
+        <div id="loginAlertAdmin" class="hidden"></div>
+        <form id="adminLoginForm">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="adminUser" placeholder="admin" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="adminPass" placeholder="admin123" required>
+            </div>
+            <button type="submit" class="btn">Login as Admin</button>
+        </form>
+        <div class="links" style="margin-top:1rem"><a href="index.html">Back to Student Login</a></div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="admin-container hidden">
+        <div class="admin-nav">
+            <h2>⚙️ Admin Panel</h2>
+            <button id="adminLogoutBtn" class="btn btn-secondary" style="width:auto; padding: 0.5rem 1.2rem">Logout</button>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="eventsTab">📅 Events</button>
+            <button class="tab-btn" data-tab="studentsTab">🎓 Students</button>
+            <button class="tab-btn" data-tab="scannerTab">📡 Live Feed</button>
+        </div>
+
+        <!-- EVENTS TAB -->
+        <div id="eventsTab" class="tab-content active">
+            <div class="panel-card" style="margin-bottom:1.5rem">
+                <h3>📅 Create New Event</h3>
+                <div id="eventsAlert" class="hidden page-alert"></div>
+                <div class="form-grid">
+                    <div class="input-row"><label>Event Name</label><input type="text" id="evtName" placeholder="e.g. Tech Fest 2026"></div>
+                    <div class="input-row"><label>Date</label><input type="date" id="evtDate"></div>
+                    <div class="input-row"><label>Start Time</label><input type="time" id="evtStartTime" value="09:00"></div>
+                    <div class="input-row"><label>End Time</label><input type="time" id="evtEndTime" value="17:00"></div>
+                    <div class="input-row"><label>Venue</label><input type="text" id="evtVenue" placeholder="e.g. Main Auditorium"></div>
+                    <div class="input-row"><label>Max Capacity</label><input type="number" id="evtCapacity" placeholder="e.g. 100" min="1"></div>
+                </div>
+                <div class="input-row" style="margin-top:0.75rem">
+                    <label>Event Type</label>
+                    <div class="radio-group">
+                        <label class="radio-label"><input type="radio" name="evtType" value="auto_assigned" checked> Auto-Assigned</label>
+                        <label class="radio-label"><input type="radio" name="evtType" value="registration_based"> Registration-Based</label>
+                    </div>
+                </div>
+                <div class="input-row">
+                    <label>Target Audience</label>
+                    <div class="radio-group">
+                        <label class="radio-label"><input type="radio" name="evtAudience" value="all" checked onchange="toggleFilters()"> All Students</label>
+                        <label class="radio-label"><input type="radio" name="evtAudience" value="filter" onchange="toggleFilters()"> Specific Filters</label>
+                    </div>
+                </div>
+                <div id="filterSection" class="filter-section hidden">
+                    <div class="input-row">
+                        <label>Department(s)</label>
+                        <div class="chip-group" id="deptChips">
+                            <label class="chip"><input type="checkbox" value="CSE"> CSE</label>
+                            <label class="chip"><input type="checkbox" value="ECE"> ECE</label>
+                            <label class="chip"><input type="checkbox" value="ME"> ME</label>
+                            <label class="chip"><input type="checkbox" value="CE"> CE</label>
+                            <label class="chip"><input type="checkbox" value="EE"> EE</label>
+                            <label class="chip"><input type="checkbox" value="IT"> IT</label>
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <label>Year(s)</label>
+                        <div class="chip-group" id="yearChips">
+                            <label class="chip"><input type="checkbox" value="1"> 1st</label>
+                            <label class="chip"><input type="checkbox" value="2"> 2nd</label>
+                            <label class="chip"><input type="checkbox" value="3"> 3rd</label>
+                            <label class="chip"><input type="checkbox" value="4"> 4th</label>
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <label>Section(s)</label>
+                        <div class="chip-group" id="secChips">
+                            <label class="chip"><input type="checkbox" value="A"> A</label>
+                            <label class="chip"><input type="checkbox" value="B"> B</label>
+                            <label class="chip"><input type="checkbox" value="C"> C</label>
+                            <label class="chip"><input type="checkbox" value="D"> D</label>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-sm" onclick="addEvent()" style="margin-top:1rem">+ Create Event</button>
+            </div>
+
+            <h3 style="color:white;margin-bottom:1rem">All Events</h3>
+            <div id="eventsList" class="events-grid"></div>
+        </div>
+
+        <!-- EVENT DETAIL PANEL (overlay) -->
+        <div id="eventDetailPanel" class="detail-panel hidden">
+            <div class="detail-panel-inner">
+                <div class="detail-header">
+                    <button class="btn-back" onclick="closeEventDetail()">← Back</button>
+                    <h3 id="detailEventName">Event</h3>
+                </div>
+                <div class="detail-meta" id="detailEventMeta"></div>
+                <div class="stat-row" id="detailStats"></div>
+                <div class="detail-actions" id="detailActions"></div>
+                <div class="detail-tabs">
+                    <button class="detail-tab-btn active" onclick="switchParticipantTab('confirmed')">✅ Confirmed</button>
+                    <button class="detail-tab-btn" onclick="switchParticipantTab('waitlisted')">⏳ Waitlisted</button>
+                </div>
+                <div id="participantsList" class="data-list"></div>
+            </div>
+        </div>
+
+        <!-- STUDENTS TAB -->
+        <div id="studentsTab" class="tab-content hidden">
+            <div class="panel-card" style="margin-bottom:1.5rem">
+                <h3>🎓 Add Student</h3>
+                <div id="studentsAlert" class="hidden page-alert"></div>
+                <div class="form-grid">
+                    <div class="input-row"><label>URN</label><input type="text" id="stuUrn" placeholder="e.g. URN104"></div>
+                    <div class="input-row"><label>Full Name</label><input type="text" id="stuName" placeholder="Full Name"></div>
+                    <div class="input-row"><label>Password</label><input type="password" id="stuPass" placeholder="Password"></div>
+                    <div class="input-row"><label>Department</label><input type="text" id="stuBranch" placeholder="e.g. CSE, ECE"></div>
+                    <div class="input-row"><label>Year</label><select id="stuYear"><option value="">--</option><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option></select></div>
+                    <div class="input-row"><label>Section</label><input type="text" id="stuSection" placeholder="e.g. A, B"></div>
+                </div>
+                <div class="input-row"><label>Photo (optional)</label><input type="file" id="stuPhoto" accept="image/*"></div>
+                <button class="btn-sm" onclick="addStudent()" style="margin-top:0.5rem">+ Add Student</button>
+            </div>
+            <div id="studentsList" class="data-list"></div>
+        </div>
+
+        <!-- SCANNER TAB -->
+        <div id="scannerTab" class="tab-content hidden">
+            <div class="share-card" id="shareCard">
+                <div class="share-qr"><canvas id="shareQrCanvas"></canvas></div>
+                <div class="share-info">
+                    <h4>📱 Open Scanner on Phone</h4>
+                    <p>Same Wi-Fi as this PC, then scan QR or open link.</p>
+                    <select class="share-select" id="ipSelect" onchange="updateShareLink()"></select>
+                    <input type="text" id="shareGateId" placeholder="Gate ID (e.g. GATE-1)" oninput="updateShareLink()" style="width:100%;padding:0.4rem 0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;color:white;margin-bottom:0.5rem;font-size:0.78rem;">
+                    <div class="share-link" id="shareLink">
+                        <span id="shareLinkText">Loading…</span>
+                        <button onclick="copyShareLink()" title="Copy">📋</button>
+                    </div>
+                </div>
+            </div>
+            <div class="live-feed-card">
+                <div class="feed-header">
+                    <h3><div class="live-indicator"></div> Live Scanner Sync</h3>
+                    <span style="font-size:0.8rem;color:var(--text-secondary)" id="sseStatus">Connecting...</span>
+                </div>
+                <div class="feed-lists-container">
+                    <div><div class="scanners-list"><h4>📱 Active Scanners</h4><div id="activeScannersList"></div></div></div>
+                    <div><div class="scans-list"><h4>📋 Real-time Scan Logs</h4><div id="liveScansList"></div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

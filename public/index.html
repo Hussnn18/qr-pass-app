@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Pass - Student Portal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="glass-container">
+        <h1>Student Login</h1>
+        <p>Access your event QR passes</p>
+        <div id="loginAlert" class="alert hidden"></div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="urn">College URN</label>
+                <input type="text" id="urn" placeholder="e.g. URN101" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter password (pass123 for demo)" required>
+            </div>
+            <button type="submit" class="btn" id="loginBtn">Login</button>
+        </form>
+        <div class="links">
+            <a href="scanner.html">Authority Member? Go to Scanner</a><br><br>
+            <a href="admin.html" style="color: var(--text-secondary); font-size: 0.8rem;">Admin Panel</a>
+        </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboardScreen" class="glass-container hidden" style="max-width: 650px;">
+        <div class="nav">
+            <span>Welcome, <strong id="studentName">Student</strong></span>
+            <button id="logoutBtn">Logout</button>
+        </div>
+
+        <!-- Active Events Section -->
+        <div id="activeEventsSection">
+            <h2>🎯 Active Events</h2>
+            <p>Events you can register for</p>
+            <div id="activeEventsContainer" class="events-student-list">
+                <p>Loading events...</p>
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- Confirmed Passes Section -->
+        <h2>🎟️ Your Confirmed Passes</h2>
+        <p>Show these QR passes at the entrance.</p>
+        <div id="passesContainer" class="pass-list">
+            <p>Loading passes...</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

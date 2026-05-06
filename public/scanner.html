@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Pass - Authority Scanner</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body { justify-content: flex-start; padding: 1.5rem 1rem; }
+
+        .scanner-container {
+            width: 95%;
+            max-width: 540px;
+            margin: 0 auto;
+        }
+
+        .scanner-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .scanner-header h2 {
+            background: none;
+            -webkit-text-fill-color: initial;
+            background-clip: unset;
+            color: white;
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        /* Camera card */
+        .camera-card {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .camera-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.85rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .live-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse-dot 1.4s infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        .camera-card-header span {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        #reader {
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* Result card */
+        .result-card {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-card.success-bg {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+
+        .result-card.warning-bg {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.35);
+        }
+
+        .result-card.error-bg {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.35);
+        }
+
+        .result-top {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .result-icon {
+            font-size: 2.2rem;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .result-info { flex: 1; }
+
+        .result-status {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.15rem;
+        }
+
+        .result-msg {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .result-details {
+            margin-top: 0.9rem;
+            padding-top: 0.9rem;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .detail-chip {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 0.45rem 0.7rem;
+        }
+
+        .detail-chip .label {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            display: block;
+            margin-bottom: 0.1rem;
+        }
+
+        .detail-chip .value {
+            font-size: 0.82rem;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Scan next button */
+        .btn-scan-next {
+            width: 100%;
+            padding: 0.7rem;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-scan-next:hover { transform: scale(1.02); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+
+        /* Scan history log */
+        .history-card {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.85rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .history-header span {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .history-header button {
+            font-size: 0.72rem;
+            color: var(--error);
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .history-header button:hover { opacity: 1; }
+
+        .history-list {
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 1.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.8rem;
+        }
+
+        .history-item:last-child { border-bottom: none; }
+
+        .history-icon { font-size: 1rem; flex-shrink: 0; }
+
+        .history-text { flex: 1; }
+        .history-text strong { display: block; color: white; font-size: 0.82rem; }
+        .history-text span { color: var(--text-secondary); font-size: 0.72rem; }
+        .history-time { color: var(--text-secondary); font-size: 0.68rem; flex-shrink: 0; }
+
+        .history-empty {
+            padding: 1.2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1" style="background: #10b981;"></div>
+    <div class="blob blob-2" style="background: #6366f1;"></div>
+
+    <!-- Setup Overlay -->
+    <div id="scannerSetupPane" class="scanner-container" style="display: none; justify-content: center; align-items: center; min-height: 80vh;">
+        <div style="background: var(--surface); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 18px; padding: 2rem; width: 100%; text-align: center;">
+            <h2 style="color: white; margin-bottom: 1.5rem;">Scanner Setup</h2>
+            <div style="text-align: left; margin-bottom: 1rem;">
+                <label style="color: var(--text-secondary); font-size: 0.8rem; display: block; margin-bottom: 0.5rem;">Select Gate / Location</label>
+                <input type="text" id="setupGateId" placeholder="e.g. GATE-1, VIP Entrance" style="width: 100%; padding: 0.8rem; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: white; margin-bottom: 1rem;">
+                <button id="setupBtn" class="btn" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); width: 100%; padding: 0.8rem; border-radius: 10px; color: white; font-weight: bold; border: none; cursor: pointer;">Start Scanning Duties</button>
+            </div>
+            <div class="links" style="margin-top:1rem"><a href="index.html">Back to Home</a></div>
+        </div>
+    </div>
+
+    <div class="scanner-container" id="mainScannerApp" style="display: none;">
+        <!-- Header -->
+        <div class="scanner-header">
+            <div>
+                <h2>🔍 Authority Scanner</h2>
+                <div id="activeGateDisplay" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;"></div>
+            </div>
+            <button class="btn btn-secondary" style="width:auto;padding:0.45rem 1rem;font-size:0.82rem;margin:0"
+                onclick="logoutScanner()">Switch Gate</button>
+        </div>
+
+        <!-- Camera Card -->
+        <div class="camera-card">
+            <div class="camera-card-header">
+                <div class="live-dot"></div>
+                <span>Camera active — point at student's QR code</span>
+            </div>
+            <div id="reader"></div>
+        </div>
+
+        <!-- Scan Result -->
+        <div id="scanResult" class="hidden">
+            <div id="resultCard" class="result-card">
+                <div class="result-top">
+                    <div class="result-icon" id="resultIcon">⏳</div>
+                    <div class="result-info">
+                        <div class="result-status" id="resultStatus">Verifying…</div>
+                        <div class="result-msg" id="resultMessage">Checking database</div>
+                    </div>
+                </div>
+                <div class="result-details hidden" id="resultDetails">
+                    <div class="detail-chip">
+                        <span class="label">Name</span>
+                        <span class="value" id="rName">—</span>
+                    </div>
+                    <div class="detail-chip">
+                        <span class="label">URN</span>
+                        <span class="value" id="rUrn">—</span>
+                    </div>
+                    <div class="detail-chip" style="grid-column: span 2;">
+                        <span class="label">Event</span>
+                        <span class="value" id="rEvent">—</span>
+                    </div>
+                </div>
+                <button id="scanNextBtn" class="btn-scan-next hidden">📷 Scan Next Pass</button>
+            </div>
+        </div>
+
+        <!-- Manual Entry Card -->
+        <div class="camera-card" id="manualEntryCard" style="padding: 1rem; margin-bottom: 1rem;">
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="text" id="manualPassId" placeholder="Or enter manual pass ID..." 
+                    onkeydown="if(event.key === 'Enter') document.getElementById('manualCheckBtn').click()"
+                    style="flex: 1; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: white; font-size: 0.9rem;">
+                <button id="manualCheckBtn" 
+                    onclick="if(window.manualCheck) window.manualCheck()"
+                    style="padding: 0.8rem 1.5rem; border-radius: 8px; border: none; background: var(--primary); color: white; cursor: pointer; font-weight: 700; min-width: 100px;">Check</button>
+            </div>
+        </div>
+
+        <!-- Scan History -->
+        <div class="history-card">
+            <div class="history-header">
+                <span>📋 Scan History</span>
+                <button onclick="clearHistory()">Clear</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="history-empty" id="historyEmpty">No scans yet this session.</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="scanner.js"></script>
+</body>
+</html>
