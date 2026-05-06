@@ -4,10 +4,11 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "npm rebuild sqlite3 --build-from-source",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "start": "node server.js",
+  "build": "npm install --ignore-scripts=false",
+  "postinstall": "npm rebuild sqlite3",
+  "test": "echo \"Error: no test specified\" && exit 1"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
