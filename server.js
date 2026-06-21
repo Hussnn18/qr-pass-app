@@ -8,6 +8,8 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const db = require('./database');
 
+const currentScannerToken = uuidv4();
+
 let sseClients = [];
 function broadcastAdminEvent(type, payload) {
     const data = JSON.stringify({ type, data: payload });
@@ -59,13 +61,32 @@ app.post('/api/login', async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: "Database Error" }); }
 });
 
+app.post('/api/students/:urn/password', async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const row = await dbGet("SELECT * FROM students WHERE urn = ? AND password = ?", [req.params.urn, currentPassword]);
+        if (!row) return res.status(401).json({ success: false, message: "Incorrect current password." });
+        await dbRun("UPDATE students SET password = ? WHERE urn = ?", [newPassword, req.params.urn]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: "Database Error" }); }
+});
+
 app.post('/api/admin/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const row = await dbGet("SELECT * FROM admins WHERE username = ? AND password = ?", [username, password]);
-        if (row) return res.json({ success: true });
+        if (row) return res.json({ success: true, scannerToken: currentScannerToken });
         res.status(401).json({ success: false, message: "Invalid admin credentials." });
     } catch (e) { res.status(500).json({ success: false, message: "DB Error" }); }
+});
+
+app.post('/api/scanner/verify-token', (req, res) => {
+    const { token } = req.body;
+    if (token === currentScannerToken) {
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ success: false, message: "Invalid scanner token." });
+    }
 });
 
 // ==================== PASSES (Student) ====================
@@ -81,7 +102,10 @@ app.get('/api/passes/:urn', async (req, res) => {
              WHERE p.student_urn = ? AND p.status = 'confirmed'`, [urn]
         );
 
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+        
         const passesWithQRs = await Promise.all(passes.map(async (pass) => {
             const verifyUrl = `${baseUrl}/verify/${pass.id}`;
             const qrCodeDataURL = await QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: 'H', color: { dark: '#111111', light: '#ffffff' } });
@@ -336,9 +360,17 @@ app.get('/api/admin/students', async (req, res) => {
 
 app.post('/api/admin/students', async (req, res) => {
     try {
-        const { urn, name, password, branch, year, section } = req.body;
-        if (!urn || !name || !password) return res.status(400).json({ success: false, message: "URN, Name, Password required." });
-        await dbRun("INSERT INTO students (urn, name, password, branch, year, section) VALUES (?,?,?,?,?,?)", [urn, name, password, branch || '', year || null, section || null]);
+        const { urn, name, password, branch, year, section, dob } = req.body;
+        if (!urn || !name) return res.status(400).json({ success: false, message: "URN and Name required." });
+        
+        let finalPassword = password;
+        if (!finalPassword) {
+            if (!dob) return res.status(400).json({ success: false, message: "DOB is required to generate default password." });
+            const ddmmyyyy = dob.split('-').reverse().join('');
+            finalPassword = name.substring(0,4).toUpperCase() + ddmmyyyy;
+        }
+
+        await dbRun("INSERT INTO students (urn, name, password, branch, year, section, dob) VALUES (?,?,?,?,?,?,?)", [urn, name, finalPassword, branch || '', year || null, section || null, dob || null]);
         res.json({ success: true });
     } catch (e) { res.status(409).json({ success: false, message: "URN already exists." }); }
 });

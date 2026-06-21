@@ -27,6 +27,7 @@ function initializeDB() {
         db.run(`ALTER TABLE students ADD COLUMN branch TEXT`, () => {});
         db.run(`ALTER TABLE students ADD COLUMN year INTEGER`, () => {});
         db.run(`ALTER TABLE students ADD COLUMN section TEXT`, () => {});
+        db.run(`ALTER TABLE students ADD COLUMN dob TEXT`, () => {});
 
         // Create Events table
         db.run(`CREATE TABLE IF NOT EXISTS events (
@@ -93,13 +94,13 @@ function insertMockData() {
         if (row && row.count === 0) {
             console.log("Inserting mock data...");
 
-            // Mock Students with branch, year, and section
-            const insertStudent = db.prepare("INSERT INTO students (urn, name, password, branch, year, section) VALUES (?, ?, ?, ?, ?, ?)");
-            insertStudent.run("URN101", "Rahul Sharma", "pass123", "CSE", 3, "A");
-            insertStudent.run("URN102", "Priya Patel", "pass123", "ECE", 2, "B");
-            insertStudent.run("URN103", "Amit Kumar", "pass123", "CSE", 3, "A");
-            insertStudent.run("URN104", "Sneha Gupta", "pass123", "ME", 4, "A");
-            insertStudent.run("URN105", "Vikram Singh", "pass123", "ECE", 2, "A");
+            // Mock Students with branch, year, section and dob
+            const insertStudent = db.prepare("INSERT INTO students (urn, name, password, branch, year, section, dob) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            insertStudent.run("URN101", "Rahul Sharma", "RAHU01012000", "CSE", 3, "A", "2000-01-01");
+            insertStudent.run("URN102", "Priya Patel", "PRIY15052001", "ECE", 2, "B", "2001-05-15");
+            insertStudent.run("URN103", "Amit Kumar", "AMIT20082000", "CSE", 3, "A", "2000-08-20");
+            insertStudent.run("URN104", "Sneha Gupta", "SNEH10121999", "ME", 4, "A", "1999-12-10");
+            insertStudent.run("URN105", "Vikram Singh", "VIKR25032001", "ECE", 2, "A", "2001-03-25");
             insertStudent.finalize();
 
             // Mock Events — one auto-assigned, one registration-based
