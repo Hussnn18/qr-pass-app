@@ -4,9 +4,11 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const QRCode = require('qrcode');
-const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const db = require('./database');
+
+(async () => {
+const { v4: uuidv4 } = await import('uuid');
 
 const currentScannerToken = uuidv4();
 
@@ -421,3 +423,4 @@ app.get('/api/server-info', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Server is running on http://localhost:${PORT}`));
+})();
