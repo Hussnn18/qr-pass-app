@@ -4,7 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const QRCode = require('qrcode');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+const uuidv4 = () => crypto.randomUUID();
 const multer = require('multer');
 const db = require('./database');
 
