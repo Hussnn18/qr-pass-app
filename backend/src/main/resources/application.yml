@@ -1,0 +1,100 @@
+# Smart Campus Events — backend configuration.
+# Profiles:
+#   dev  (default) MySQL on localhost, demo data seeded on first start
+#   h2             in-memory database, demo data seeded — runs without MySQL
+#   prod           every secret must come from environment variables
+spring:
+  application:
+    name: smart-campus-events
+  profiles:
+    default: dev
+    group:
+      dev: local
+      h2: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none   # Flyway owns the schema (src/main/resources/db/migration)
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        type.preferred_instant_jdbc_type: TIMESTAMP
+        default_batch_fetch_size: 50
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+
+server:
+  port: ${PORT:8080}
+
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+  jwt:
+    secret: ${JWT_SECRET:}
+    access-ttl: 15m
+    refresh-ttl: 7d
+  pass-key: ${PASS_KEY:}
+  cookie-secure: ${COOKIE_SECURE:false}
+  upload-dir: ${UPLOAD_DIR:uploads}
+  seed:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+---
+# Shared by dev and h2: local-only secrets and demo data. Never use these values in production.
+spring:
+  config:
+    activate:
+      on-profile: local
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789abcdef}
+  pass-key: ${PASS_KEY:ZGV2LW9ubHktcGFzcy1rZXktMzItYnl0ZXMtbG9uZyE=}
+  seed:
+    enabled: ${SEED_DEMO_DATA:true}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/smart_campus_events?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USER:scems_app}
+    password: ${DB_PASSWORD:scems_local_dev}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: h2
+  datasource:
+    url: jdbc:h2:mem:scems;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000
+    username: sa
+    password: ""
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+app:
+  cookie-secure: true
