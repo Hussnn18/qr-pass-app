@@ -19,9 +19,22 @@ export const toast = {
   error: (m, t) => toast.show('error', m, t),
   warning: (m, t) => toast.show('warning', m, t),
   info: (m, t) => toast.show('info', m, t),
-  /** Shows a result object from the mock API ({ ok, message }). */
-  result: (r, okTitle) => (r.ok ? toast.success(r.message, okTitle) : toast.error(r.message)),
 };
+
+/**
+ * Runs an API call, shows its error as a toast, and optionally a success toast.
+ * Returns the result, or undefined when it failed.
+ */
+export async function attempt(fn, success) {
+  try {
+    const result = await fn();
+    if (success) toast.success(typeof success === 'function' ? success(result) : success);
+    return result;
+  } catch (e) {
+    toast.error(e.message);
+    return undefined;
+  }
+}
 
 export function ToastHost() {
   const [items, setItems] = useState([]);

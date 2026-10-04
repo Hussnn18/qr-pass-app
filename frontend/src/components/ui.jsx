@@ -1,4 +1,4 @@
-import { Card, Pagination, ProgressBar } from 'react-bootstrap';
+import { Button, Card, Pagination, ProgressBar, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { CATEGORIES, EVENT_STATUS, MODES, PASS_STATUS, REG_STATUS, ROLES, USER_STATUS } from '../data/constants';
 import { countdown, hashColor, initials } from '../utils/format';
@@ -96,8 +96,9 @@ export function CategoryChip({ category }) {
 }
 
 export function Avatar({ user, size = 40, className = '' }) {
-  if (user?.photo) {
-    return <img src={user.photo} alt="" className={`avatar ${className}`} style={{ width: size, height: size }} />;
+  const photo = user?.photoUrl || user?.photo;
+  if (photo) {
+    return <img src={photo} alt="" className={`avatar ${className}`} style={{ width: size, height: size }} />;
   }
   return (
     <span className={`avatar ${className}`} aria-hidden="true" style={{ width: size, height: size, fontSize: size * 0.38, background: hashColor(user?.name || '?') }}>
@@ -142,6 +143,29 @@ export function Pager({ page, pages, onChange }) {
       <Pagination.Next disabled={page === pages} onClick={() => onChange(page + 1)} aria-label="Next page" />
     </Pagination>
   );
+}
+
+export function Loading({ label = 'Loading…' }) {
+  return (
+    <div className="text-center py-5 text-muted-2" role="status">
+      <Spinner animation="border" size="sm" className="me-2" />{label}
+    </div>
+  );
+}
+
+export function ErrorState({ error, onRetry }) {
+  return (
+    <EmptyState icon="exclamation-octagon" title="Couldn't load this" action={onRetry && <Button variant="outline-primary" onClick={onRetry}>Try again</Button>}>
+      {error?.message || 'Something went wrong.'}
+    </EmptyState>
+  );
+}
+
+/** Renders loading / error / content for a useApi() result. */
+export function Async({ state, children, label }) {
+  if (state.error && state.data === undefined) return <ErrorState error={state.error} onRetry={state.reload} />;
+  if (state.data === undefined) return <Loading label={label} />;
+  return children(state.data);
 }
 
 export function paginate(list, page, size) {

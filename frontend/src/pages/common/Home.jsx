@@ -1,4 +1,4 @@
-import { useCurrentUser } from '../../store/session';
+import { useCurrentUser } from '../../auth/AuthContext';
 import ParticipantDashboard from '../participant/ParticipantDashboard';
 import OrganizerDashboard from '../organizer/OrganizerDashboard';
 import SecurityHome from '../security/SecurityHome';
@@ -9,7 +9,7 @@ export default function Home() {
   switch (user.role) {
     case 'ADMIN': return <AdminDashboard user={user} />;
     case 'ORGANIZER': return <OrganizerDashboard user={user} />;
-    case 'SECURITY': return <SecurityHome user={user} />;
+    case 'SECURITY': return <SecurityHome user={user} home />;
     default: return <ParticipantDashboard user={user} />;
   }
 }

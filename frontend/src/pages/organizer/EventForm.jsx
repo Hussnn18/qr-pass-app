@@ -1,19 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { CATEGORIES, LOCATION_TYPES, MODES, SECTIONS, SEMESTERS } from '../../data/constants';
-import { useStore } from '../../store/store';
-import { useCurrentUser } from '../../store/session';
-import { byId, canManage, gatesForLocation } from '../../store/selectors';
-import { saveEvent } from '../../store/actions';
-import { countEligibleStudents, eligibilitySummary } from '../../utils/eligibility';
+import { api } from '../../api/client';
+import { useApi } from '../../api/useApi';
+import { CATEGORIES, MODES, SECTIONS, SEMESTERS, VENUE_TYPES } from '../../data/constants';
+import { useCurrentUser } from '../../auth/AuthContext';
+import { eligibilitySummary } from '../../utils/events';
 import { fmtDateTime, fmtRange, fromInputDT, toInputDT } from '../../utils/format';
 import { useTitle } from '../../utils/hooks';
-import { EmptyState, PageHeader, Panel, Tag } from '../../components/ui';
+import { EmptyState, Loading, PageHeader, Panel, Tag } from '../../components/ui';
 import { toast } from '../../components/feedback';
-import CampusMap from '../../components/CampusMap';
 
 const STEPS = ['Basics', 'Venue & schedule', 'Registration', 'Eligibility', 'Gates & security', 'Review'];
+/** Which wizard step owns each field, so server-side errors take the user to the right place. */
+const FIELD_STEP = { title: 0, description: 0, category: 0, organizerIds: 0, venueId: 1, startsAt: 1, endsAt: 1, regOpensAt: 1, regClosesAt: 1, capacity: 2, mode: 2, eligibility: 3, gateIds: 4 };
 
 function defaults() {
   const d = new Date();
@@ -23,115 +23,154 @@ function defaults() {
   return {
     title: '', category: 'TECHNICAL', description: '', venueId: '', startsAt: start, endsAt: start + 3 * 36e5,
     regOpensAt: Date.now(), regClosesAt: start - 864e5, capacity: 100, mode: 'OPEN', allowOutsiders: false,
-    eligibility: { departments: [], semesters: [], sections: [] }, gateIds: [], assignments: {}, organizerIds: [],
+    eligibility: { departments: [], semesters: [], sections: [] }, gateIds: [], gateStaff: {}, organizerIds: [],
   };
 }
 
-function validate(f, s, isNew) {
+function fromView(ev) {
+  const gateStaff = {};
+  (ev.gateStaff || []).forEach((g) => { gateStaff[g.gateId] = g.staff.map((s) => s.id); });
+  return {
+    title: ev.title, category: ev.category, description: ev.description, venueId: ev.venue.id, startsAt: ev.startsAt, endsAt: ev.endsAt,
+    regOpensAt: ev.regOpensAt, regClosesAt: ev.regClosesAt, capacity: ev.stats.capacity, mode: ev.mode, allowOutsiders: ev.allowOutsiders,
+    eligibility: ev.eligibility, gateIds: ev.gates.map((g) => g.id), gateStaff, organizerIds: ev.organizers.map((o) => o.id),
+  };
+}
+
+/** Same rules as the server, so most mistakes are caught before submitting. */
+function validate(f, venue, isNew, status) {
   const e = {};
   const w = {};
   if (f.title.trim().length < 5) e.title = 'Give the event a title of at least 5 characters.';
-  if (f.description.trim().length < 20) e.description = 'Describe the event in at least 20 characters so students know what to expect.';
+  if (f.description.trim().length < 20) e.description = 'Describe the event in at least 20 characters.';
   if (!f.venueId) e.venueId = 'Choose a venue.';
   if (!f.startsAt || !f.endsAt || f.endsAt <= f.startsAt) e.endsAt = 'The event must end after it starts.';
-  if (isNew && f.startsAt < Date.now()) e.startsAt = 'The start time is in the past.';
+  if ((isNew || status === 'DRAFT') && f.startsAt < Date.now()) e.startsAt = 'The start time is in the past.';
   if (f.mode !== 'AUTO_ASSIGN') {
     if (!f.regOpensAt || !f.regClosesAt || f.regClosesAt <= f.regOpensAt) e.regClosesAt = 'Registration must close after it opens.';
     else if (f.regClosesAt > f.startsAt) e.regClosesAt = 'Registration should close before the event starts.';
   }
   if (!f.capacity || f.capacity < 1) e.capacity = 'Capacity must be at least 1.';
-  const venue = byId(s.locations, f.venueId);
   if (venue?.capacity && f.capacity > venue.capacity) w.capacity = `${venue.name} holds about ${venue.capacity} people.`;
-  const eligible = countEligibleStudents(s.users, f.eligibility);
-  if (!eligible && !f.allowOutsiders) e.eligibility = 'No student matches these rules. Widen them or allow guests.';
-  if (!f.gateIds.length) w.gateIds = 'Without gates, passes cannot be scanned. Add at least one before the event.';
-  const unstaffed = f.gateIds.filter((g) => !(f.assignments[g] || []).length);
-  if (f.gateIds.length && unstaffed.length) w.assignments = `${unstaffed.length} gate(s) have no security staff yet.`;
-  return { e, w, eligible };
+  if (!f.gateIds.length) w.gateIds = 'Add at least one entry gate before publishing — otherwise passes can’t be scanned.';
+  const unstaffed = f.gateIds.filter((g) => !(f.gateStaff[g] || []).length);
+  if (f.gateIds.length && unstaffed.length) w.gateStaff = `${unstaffed.length} gate(s) have no security staff yet.`;
+  return { e, w };
 }
 
-const STEP_FIELDS = [['title', 'description'], ['venueId', 'startsAt', 'endsAt', 'regClosesAt'], ['capacity'], ['eligibility'], [], []];
-
-function ChipToggle({ options, value, onChange, render = (x) => x, label }) {
-  const toggle = (o) => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o]);
+function ChipToggle({ options, value, onChange, label }) {
+  const toggle = (o) => onChange(value.includes(o.value) ? value.filter((x) => x !== o.value) : [...value, o.value]);
   return (
     <div className="d-flex flex-wrap gap-2" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button key={o} type="button" className="toggle-chip" aria-pressed={value.includes(o)} onClick={() => toggle(o)}>{render(o)}</button>
-      ))}
+      {options.map((o) => <button key={o.value} type="button" className="toggle-chip" aria-pressed={value.includes(o.value)} onClick={() => toggle(o)}>{o.label}</button>)}
     </div>
   );
 }
 
 export default function EventForm() {
   const { id } = useParams();
-  const s = useStore();
   const user = useCurrentUser();
   const navigate = useNavigate();
-  const existing = id ? byId(s.events, id) : null;
-  useTitle(existing ? `Edit ${existing.title}` : 'Create event');
+  const existing = useApi(id ? `/manage/events/${id}` : null);
+  const venues = useApi('/manage/venues');
+  const depts = useApi('/departments');
+  const security = useApi('/manage/security-staff');
+  const organizers = useApi(user.role === 'ADMIN' ? '/manage/organizers' : null);
+  useTitle(id ? 'Edit event' : 'Create event');
 
-  const [f, setF] = useState(() => {
-    if (!existing) return { ...defaults(), organizerIds: user.role === 'ORGANIZER' ? [user.id] : [] };
-    const assignments = {};
-    s.assignments.filter((a) => a.eventId === existing.id).forEach((a) => { (assignments[a.gateId] ||= []).push(a.userId); });
-    return { ...structuredClone(existing), assignments };
-  });
+  const [f, setF] = useState(null);
   const [step, setStep] = useState(0);
   const [touched, setTouched] = useState(new Set());
-  const { e: errors, w: warnings, eligible } = useMemo(() => validate(f, s, !existing), [f, s, existing]);
+  const [serverErrors, setServerErrors] = useState({});
+  const [eligibleCount, setEligibleCount] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  if (id && (!existing || !canManage(user, existing))) {
-    return <EmptyState icon="calendar-x" title="Event not found" action={<Button as={Link} to="/manage/events">Back to events</Button>}>You may not have permission to edit it.</EmptyState>;
-  }
-  if (existing && ['COMPLETED', 'CANCELLED'].includes(existing.status)) {
-    return <EmptyState icon="lock" title="This event can no longer be edited" action={<Button as={Link} to={`/manage/events/${existing.id}`}>Back to event</Button>}>Completed and cancelled events are locked so reports stay accurate.</EmptyState>;
+  useEffect(() => {
+    if (!id) setF(defaults());
+    else if (existing.data) setF(fromView(existing.data));
+  }, [id, existing.data]);
+
+  const eligKey = JSON.stringify(f?.eligibility);
+  useEffect(() => {
+    if (!f) return undefined;
+    const t = setTimeout(() => {
+      api('/manage/eligibility-preview', { method: 'POST', body: f.eligibility }).then((r) => setEligibleCount(r.count)).catch(() => setEligibleCount(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [eligKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const venue = useMemo(() => (venues.data || []).find((v) => v.id === Number(f?.venueId)), [venues.data, f?.venueId]);
+  const status = existing.data?.status;
+  const { e: clientErrors, w: warnings } = useMemo(() => (f ? validate(f, venue, !id, status) : { e: {}, w: {} }), [f, venue, id, status]);
+  const errors = { ...clientErrors, ...serverErrors };
+
+  if (id && existing.error) return <EmptyState icon="calendar-x" title="Event not found" action={<Button as={Link} to="/manage/events">Back to events</Button>}>{existing.error.message}</EmptyState>;
+  if (!f || !venues.data || !depts.data) return <Loading />;
+  if (status && ['COMPLETED', 'CANCELLED'].includes(status)) {
+    return <EmptyState icon="lock" title="This event can no longer be edited" action={<Button as={Link} to={`/manage/events/${id}`}>Back to event</Button>}>Completed and cancelled events are locked so records stay accurate.</EmptyState>;
   }
 
-  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const setElig = (k, v) => setF((x) => ({ ...x, eligibility: { ...x.eligibility, [k]: v } }));
-  const venue = byId(s.locations, f.venueId);
-  const venueGates = f.venueId ? gatesForLocation(s, f.venueId) : [];
-  const security = s.users.filter((u) => u.role === 'SECURITY' && u.status === 'ACTIVE');
-  const organizers = s.users.filter((u) => u.role === 'ORGANIZER' && u.status === 'ACTIVE');
-  const stepErrors = (i) => STEP_FIELDS[i].filter((k) => errors[k]);
-  const show = (k) => (touched.has(step) || touched.has('all')) && errors[k];
+  const set = (k, v) => {
+    setServerErrors((s) => { const n = { ...s }; delete n[k]; return n; });
+    setF((x) => ({ ...x, [k]: v }));
+  };
+  const setElig = (k, v) => set('eligibility', { ...f.eligibility, [k]: v });
+  const stepErrors = (i) => Object.keys(errors).filter((k) => FIELD_STEP[k] === i);
+  const show = (k) => (touched.has(step) || touched.has('all') || serverErrors[k]) && errors[k];
+  const changeVenue = (vid) => {
+    const v = venues.data.find((x) => x.id === Number(vid));
+    setF((x) => ({ ...x, venueId: vid ? Number(vid) : '', gateIds: v?.gates.slice(0, 1).map((g) => g.id) || [], gateStaff: {} }));
+  };
 
   const next = () => {
     setTouched((t) => new Set(t).add(step));
     if (stepErrors(step).length) return;
     setStep((x) => Math.min(x + 1, STEPS.length - 1));
   };
-  const submit = (publish) => {
+
+  const submit = async (publish) => {
     setTouched(new Set(['all', 0, 1, 2, 3, 4, 5]));
     const firstBad = STEPS.findIndex((_, i) => stepErrors(i).length);
     if (firstBad >= 0) {
       setStep(firstBad);
-      return toast.error('Fix the highlighted fields first.');
+      toast.error('Fix the highlighted fields first.');
+      return;
     }
-    if (publish && !f.gateIds.length) {
-      setStep(4);
-      return toast.error('Add at least one entry gate before publishing.');
+    const body = {
+      ...f, title: f.title.trim(), description: f.description.trim(), venueId: Number(f.venueId), capacity: Number(f.capacity),
+      regOpensAt: f.mode === 'AUTO_ASSIGN' ? null : f.regOpensAt, regClosesAt: f.mode === 'AUTO_ASSIGN' ? null : f.regClosesAt,
+      organizerIds: user.role === 'ADMIN' ? f.organizerIds : null,
+    };
+    setSaving(true);
+    try {
+      let saved;
+      if (id) {
+        saved = await api(`/manage/events/${id}`, { method: 'PUT', body });
+        if (publish && saved.status === 'DRAFT') saved = await api(`/manage/events/${id}/publish`, { method: 'POST' });
+      } else {
+        saved = await api(`/manage/events?publish=${publish}`, { method: 'POST', body });
+      }
+      toast.success(publish ? 'Event published.' : id ? 'Changes saved.' : 'Saved as a draft.');
+      navigate(`/manage/events/${saved.id}`);
+    } catch (err) {
+      setServerErrors(err.errors || {});
+      const bad = Object.keys(err.errors || {}).map((k) => FIELD_STEP[k]).filter((x) => x !== undefined);
+      if (bad.length) setStep(Math.min(...bad));
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
     }
-    const { assignments, ...rest } = f;
-    const data = { ...rest, assignments, title: f.title.trim(), description: f.description.trim(), capacity: Number(f.capacity) };
-    if (f.mode === 'AUTO_ASSIGN') { data.regOpensAt = Date.now(); data.regClosesAt = f.startsAt; }
-    const r = saveEvent(data, { id: existing?.id, publish });
-    toast.result(r);
-    if (r.ok) navigate(`/manage/events/${r.id}`);
   };
-  const changeVenue = (vid) => setF((x) => ({ ...x, venueId: vid, gateIds: gatesForLocation(s, vid).map((g) => g.id).slice(0, 1), assignments: {} }));
+
+  const deptOptions = depts.data.map((d) => ({ value: d.code, label: d.code }));
 
   return (
     <>
-      <PageHeader
-        title={existing ? 'Edit event' : 'Create event'}
-        crumbs={[{ label: user.role === 'ADMIN' ? 'All events' : 'My events', to: '/manage/events' }]}
-        subtitle={existing ? existing.title : 'Six short steps. You can save a draft at any point and publish later.'}
-      />
+      <PageHeader title={id ? 'Edit event' : 'Create event'} crumbs={[{ label: user.role === 'ADMIN' ? 'All events' : 'My events', to: '/manage/events' }]}
+        subtitle={id ? existing.data?.title : 'Six short steps. Save a draft at any point and publish when ready.'} />
       <ol className="stepper" aria-label="Steps">
         {STEPS.map((label, i) => {
-          const bad = touched.has(i) && stepErrors(i).length;
+          const bad = (touched.has(i) || touched.has('all')) && stepErrors(i).length;
           return (
             <li key={label} className={i === step ? 'active' : bad ? 'error' : i < step ? 'done' : ''}>
               <button type="button" onClick={() => setStep(i)} aria-current={i === step ? 'step' : undefined}>
@@ -150,9 +189,8 @@ export default function EventForm() {
                 <Row className="g-3">
                   <Col xs={12}>
                     <Form.Group controlId="ef-title"><Form.Label>Event title</Form.Label>
-                      <Form.Control value={f.title} onChange={(e) => set('title', e.target.value)} isInvalid={!!show('title')} maxLength={90} placeholder="e.g. Cloud Computing Workshop" autoFocus />
+                      <Form.Control value={f.title} onChange={(e) => set('title', e.target.value)} isInvalid={!!show('title')} maxLength={120} placeholder="e.g. Cloud Computing Workshop" autoFocus />
                       <Form.Control.Feedback type="invalid">{errors.title}</Form.Control.Feedback>
-                      <Form.Text>{f.title.length}/90</Form.Text>
                     </Form.Group>
                   </Col>
                   <Col xs={12}>
@@ -169,15 +207,16 @@ export default function EventForm() {
                   </Col>
                   <Col xs={12}>
                     <Form.Group controlId="ef-desc"><Form.Label>Description</Form.Label>
-                      <Form.Control as="textarea" rows={5} value={f.description} onChange={(e) => set('description', e.target.value)} isInvalid={!!show('description')} placeholder="What happens, who it's for, what to bring." />
+                      <Form.Control as="textarea" rows={5} value={f.description} onChange={(e) => set('description', e.target.value)} isInvalid={!!show('description')} maxLength={4000} placeholder="What happens, who it's for, what to bring." />
                       <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>
                     </Form.Group>
                   </Col>
-                  {user.role === 'ADMIN' && (
+                  {user.role === 'ADMIN' && organizers.data && (
                     <Col xs={12}>
                       <Form.Label as="div">Organizers</Form.Label>
-                      <ChipToggle label="Organizers" options={organizers.map((o) => o.id)} value={f.organizerIds} onChange={(v) => set('organizerIds', v)} render={(oid) => byId(s.users, oid)?.name} />
-                      <Form.Text>Organizers can manage registrations and see analytics for this event.</Form.Text>
+                      <ChipToggle label="Organizers" options={organizers.data.map((o) => ({ value: o.id, label: o.name }))} value={f.organizerIds} onChange={(v) => set('organizerIds', v)} />
+                      <Form.Text>Organizers manage registrations for this event. Leave empty to manage it yourself.</Form.Text>
+                      {errors.organizerIds && <div className="small text-danger">{errors.organizerIds}</div>}
                     </Col>
                   )}
                 </Row>
@@ -189,20 +228,15 @@ export default function EventForm() {
                     <Form.Group controlId="ef-venue"><Form.Label>Venue</Form.Label>
                       <Form.Select value={f.venueId} onChange={(e) => changeVenue(e.target.value)} isInvalid={!!show('venueId')}>
                         <option value="">Choose a campus venue…</option>
-                        {Object.entries(LOCATION_TYPES).map(([t, meta]) => {
-                          const opts = s.locations.filter((l) => l.type === t && l.canHostEvents);
-                          return opts.length ? (
-                            <optgroup key={t} label={meta.label}>
-                              {opts.map((l) => <option key={l.id} value={l.id}>{l.name}{l.capacity ? ` (≈${l.capacity})` : ''}</option>)}
-                            </optgroup>
-                          ) : null;
+                        {Object.entries(VENUE_TYPES).map(([t, meta]) => {
+                          const opts = venues.data.filter((v) => v.type === t);
+                          return opts.length ? <optgroup key={t} label={meta.label}>{opts.map((v) => <option key={v.id} value={v.id}>{v.name}{v.capacity ? ` (≈${v.capacity})` : ''}</option>)}</optgroup> : null;
                         })}
                       </Form.Select>
                       <Form.Control.Feedback type="invalid">{errors.venueId}</Form.Control.Feedback>
                     </Form.Group>
-                    {venue && <p className="small text-muted-2 mt-2 mb-0">{venue.building} · {venue.description}</p>}
                   </Col>
-                  <Col md={6}>{venue ? <CampusMap locations={[venue]} selectedId={venue.id} height={170} zoom={17} /> : <div className="border rounded h-100 d-grid text-muted-2 small p-3" style={{ placeItems: 'center' }}>Map preview</div>}</Col>
+                  <Col md={6} className="small text-muted-2 d-flex align-items-end">{venue && <span>{venue.building}{venue.floor && venue.floor !== '—' ? ` · Floor ${venue.floor}` : ''} · {venue.gates.length} gate(s)</span>}</Col>
                   <Col md={6}>
                     <Form.Group controlId="ef-start"><Form.Label>Starts</Form.Label>
                       <Form.Control type="datetime-local" value={toInputDT(f.startsAt)} onChange={(e) => set('startsAt', fromInputDT(e.target.value))} isInvalid={!!show('startsAt')} />
@@ -230,14 +264,14 @@ export default function EventForm() {
                       </Col>
                     </>
                   )}
-                  <Col xs={12}><Alert variant="light" className="border small mb-0"><i className="bi bi-door-open me-1" />Gates open automatically 60 minutes before the start time.</Alert></Col>
+                  <Col xs={12}><Alert variant="light" className="border small mb-0"><i className="bi bi-door-open me-1" />Gates open 60 minutes before the start. Publishing is blocked if another event uses this venue at an overlapping time.</Alert></Col>
                 </Row>
               )}
 
               {step === 2 && (
                 <Row className="g-3">
                   <Col xs={12}>
-                    <Form.Label as="div">How do people get a seat?</Form.Label>
+                    <Form.Label as="div">How do students get a seat?</Form.Label>
                     <Row className="g-2">
                       {Object.entries(MODES).map(([k, m]) => (
                         <Col md={4} key={k}>
@@ -248,6 +282,7 @@ export default function EventForm() {
                         </Col>
                       ))}
                     </Row>
+                    {errors.mode && <div className="small text-danger mt-1">{errors.mode}</div>}
                   </Col>
                   <Col md={6}>
                     <Form.Group controlId="ef-cap"><Form.Label>Capacity (seats)</Form.Label>
@@ -256,61 +291,47 @@ export default function EventForm() {
                       {warnings.capacity && <Form.Text className="text-warning"><i className="bi bi-exclamation-triangle me-1" />{warnings.capacity}</Form.Text>}
                     </Form.Group>
                   </Col>
-                  <Col md={6} className="d-flex align-items-end">
-                    <Form.Check type="switch" id="ef-out" checked={f.allowOutsiders} onChange={(e) => set('allowOutsiders', e.target.checked)} disabled={f.mode === 'AUTO_ASSIGN'}
-                      label={<><span className="fw-600">Allow guests from other institutions</span><span className="d-block small-2 text-muted-2">Verified guest accounts can register.</span></>} />
-                  </Col>
                 </Row>
               )}
 
               {step === 3 && (
                 <div className="section-gap">
-                  <p className="small text-muted-2 mb-0">Leave a group empty to allow everyone. Students outside these rules won't see a Register button and are told why.</p>
-                  <div>
-                    <Form.Label as="div">Departments</Form.Label>
-                    <ChipToggle label="Departments" options={s.departments.map((d) => d.id)} value={f.eligibility.departments} onChange={(v) => setElig('departments', v)} />
-                  </div>
-                  <div>
-                    <Form.Label as="div">Semesters</Form.Label>
-                    <ChipToggle label="Semesters" options={SEMESTERS} value={f.eligibility.semesters} onChange={(v) => setElig('semesters', v)} render={(x) => `Sem ${x}`} />
-                  </div>
-                  <div>
-                    <Form.Label as="div">Sections</Form.Label>
-                    <ChipToggle label="Sections" options={SECTIONS} value={f.eligibility.sections} onChange={(v) => setElig('sections', v)} />
-                  </div>
-                  <Alert variant={eligible ? 'success' : 'danger'} className="small mb-0" aria-live="polite">
-                    <i className={`bi bi-${eligible ? 'people' : 'exclamation-octagon'} me-2`} />
-                    <strong>{eligible}</strong> enrolled student{eligible === 1 ? '' : 's'} match these rules{f.allowOutsiders ? ', plus verified guests' : ''}.
-                    {!eligible && !f.allowOutsiders && ' Widen the rules or allow guests.'}
+                  <p className="small text-muted-2 mb-0">Leave a group empty to allow everyone. The server checks these rules on every registration; students who don't qualify see exactly why.</p>
+                  <div><Form.Label as="div">Departments</Form.Label><ChipToggle label="Departments" options={deptOptions} value={f.eligibility.departments} onChange={(v) => setElig('departments', v)} /></div>
+                  <div><Form.Label as="div">Semesters</Form.Label><ChipToggle label="Semesters" options={SEMESTERS.map((s) => ({ value: s, label: `Sem ${s}` }))} value={f.eligibility.semesters} onChange={(v) => setElig('semesters', v)} /></div>
+                  <div><Form.Label as="div">Sections</Form.Label><ChipToggle label="Sections" options={SECTIONS.map((s) => ({ value: s, label: s }))} value={f.eligibility.sections} onChange={(v) => setElig('sections', v)} /></div>
+                  {errors.eligibility && <Alert variant="danger" className="small mb-0">{errors.eligibility}</Alert>}
+                  <Alert variant={eligibleCount === 0 ? 'warning' : 'success'} className="small mb-0" aria-live="polite">
+                    <i className="bi bi-people me-2" />
+                    {eligibleCount == null ? 'Counting matching students…' : <><strong>{eligibleCount}</strong> enrolled student{eligibleCount === 1 ? '' : 's'} match these rules.</>}
                   </Alert>
                 </div>
               )}
 
               {step === 4 && (
                 <div className="section-gap">
-                  {!venue ? <Alert variant="warning" className="small">Choose a venue first (step 2).</Alert> : !venueGates.length ? (
-                    <Alert variant="warning" className="small">{venue.name} has no gates yet. An admin can add them under Campus → Locations &amp; Gates.</Alert>
-                  ) : (
-                    venueGates.map((g) => {
-                      const on = f.gateIds.includes(g.id);
-                      const staff = f.assignments[g.id] || [];
-                      return (
-                        <div key={g.id} className={`border rounded p-3 ${on ? 'bg-white' : 'bg-light'}`}>
-                          <Form.Check type="switch" id={`gate-${g.id}`} checked={on} label={<span className="fw-600">{g.name}</span>}
-                            onChange={(e) => setF((x) => ({ ...x, gateIds: e.target.checked ? [...x.gateIds, g.id] : x.gateIds.filter((y) => y !== g.id) }))} />
-                          {on && (
-                            <div className="mt-2">
-                              <div className="small fw-600 mb-1">Security staff at this gate</div>
-                              <ChipToggle label={`Staff for ${g.name}`} options={security.map((u) => u.id)} value={staff} render={(uid) => byId(s.users, uid)?.name}
-                                onChange={(v) => setF((x) => ({ ...x, assignments: { ...x.assignments, [g.id]: v } }))} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
+                  {!venue ? <Alert variant="warning" className="small">Choose a venue first (step 2).</Alert> : !venue.gates.length ? (
+                    <Alert variant="warning" className="small">{venue.name} has no gates yet. An admin can add them under Control Panel → Venues &amp; Gates.</Alert>
+                  ) : venue.gates.map((g) => {
+                    const on = f.gateIds.includes(g.id);
+                    const staff = f.gateStaff[g.id] || [];
+                    return (
+                      <div key={g.id} className={`border rounded p-3 ${on ? 'bg-white' : 'bg-light'}`}>
+                        <Form.Check type="switch" id={`gate-${g.id}`} checked={on} label={<span className="fw-600">{g.name}</span>}
+                          onChange={(e) => set('gateIds', e.target.checked ? [...f.gateIds, g.id] : f.gateIds.filter((y) => y !== g.id))} />
+                        {on && security.data && (
+                          <div className="mt-2">
+                            <div className="small fw-600 mb-1">Security staff allowed to scan here</div>
+                            <ChipToggle label={`Staff for ${g.name}`} options={security.data.map((u) => ({ value: u.id, label: u.name }))} value={staff}
+                              onChange={(v) => set('gateStaff', { ...f.gateStaff, [g.id]: v })} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {errors.gateIds && <Alert variant="danger" className="small mb-0">{errors.gateIds}</Alert>}
                   {warnings.gateIds && <Alert variant="warning" className="small mb-0"><i className="bi bi-exclamation-triangle me-1" />{warnings.gateIds}</Alert>}
-                  {!warnings.gateIds && warnings.assignments && <Alert variant="warning" className="small mb-0"><i className="bi bi-exclamation-triangle me-1" />{warnings.assignments}</Alert>}
+                  {!warnings.gateIds && warnings.gateStaff && <Alert variant="warning" className="small mb-0"><i className="bi bi-exclamation-triangle me-1" />{warnings.gateStaff}</Alert>}
                 </div>
               )}
 
@@ -319,33 +340,25 @@ export default function EventForm() {
                   <dl className="pass-facts" style={{ fontSize: '.92rem' }}>
                     <dt>Title</dt><dd>{f.title || <em className="text-danger">missing</em>}</dd>
                     <dt>Category</dt><dd>{CATEGORIES[f.category].label}</dd>
-                    <dt>When</dt><dd>{f.startsAt && f.endsAt ? fmtRange(f.startsAt, f.endsAt) : '—'}</dd>
+                    <dt>When</dt><dd>{f.startsAt && f.endsAt > f.startsAt ? fmtRange(f.startsAt, f.endsAt) : '—'}</dd>
                     <dt>Venue</dt><dd>{venue?.name || <em className="text-danger">missing</em>}</dd>
                     <dt>Registration</dt><dd>{MODES[f.mode].label}{f.mode !== 'AUTO_ASSIGN' && ` · ${fmtDateTime(f.regOpensAt)} → ${fmtDateTime(f.regClosesAt)}`}</dd>
                     <dt>Capacity</dt><dd>{f.capacity} seats</dd>
-                    <dt>Who</dt><dd>{eligibilitySummary(f)} · {eligible} students</dd>
-                    <dt>Gates</dt><dd>{f.gateIds.map((g) => `${byId(s.gates, g)?.name} (${(f.assignments[g] || []).length} staff)`).join(', ') || 'None'}</dd>
+                    <dt>Who</dt><dd>{eligibilitySummary(f.eligibility)}{eligibleCount != null && ` · ${eligibleCount} students`}</dd>
+                    <dt>Gates</dt><dd>{f.gateIds.map((gid) => `${venue?.gates.find((g) => g.id === gid)?.name} (${(f.gateStaff[gid] || []).length} staff)`).join(', ') || 'None'}</dd>
                   </dl>
-                  {Object.keys(errors).length > 0 && (
-                    <Alert variant="danger" className="small mb-0"><strong>Fix before saving:</strong><ul className="mb-0">{Object.values(errors).map((m) => <li key={m}>{m}</li>)}</ul></Alert>
-                  )}
-                  {Object.keys(warnings).length > 0 && (
-                    <Alert variant="warning" className="small mb-0"><strong>Worth checking:</strong><ul className="mb-0">{Object.values(warnings).map((m) => <li key={m}>{m}</li>)}</ul></Alert>
-                  )}
+                  {Object.keys(errors).length > 0 && <Alert variant="danger" className="small mb-0"><strong>Fix before saving:</strong><ul className="mb-0">{Object.values(errors).map((m) => <li key={m}>{m}</li>)}</ul></Alert>}
+                  {Object.keys(warnings).length > 0 && <Alert variant="warning" className="small mb-0"><strong>Worth checking:</strong><ul className="mb-0">{Object.values(warnings).map((m) => <li key={m}>{m}</li>)}</ul></Alert>}
                 </div>
               )}
 
               <div className="d-flex flex-wrap gap-2 justify-content-between mt-4 pt-3 border-top">
                 <Button variant="light" onClick={() => setStep((x) => Math.max(0, x - 1))} disabled={step === 0}><i className="bi bi-arrow-left me-1" />Back</Button>
                 <div className="d-flex flex-wrap gap-2">
-                  {(!existing || existing.status === 'DRAFT') && <Button variant="outline-primary" onClick={() => submit(false)}>Save draft</Button>}
-                  {step < STEPS.length - 1 ? (
-                    <Button type="submit">Next<i className="bi bi-arrow-right ms-1" /></Button>
-                  ) : existing && existing.status !== 'DRAFT' ? (
-                    <Button variant="brand" onClick={() => submit(false)}>Save changes</Button>
-                  ) : (
-                    <Button variant="brand" onClick={() => submit(true)}><i className="bi bi-broadcast me-1" />Publish event</Button>
-                  )}
+                  {(!id || status === 'DRAFT') && <Button variant="outline-primary" onClick={() => submit(false)} disabled={saving}>Save draft</Button>}
+                  {step < STEPS.length - 1 ? <Button type="submit">Next<i className="bi bi-arrow-right ms-1" /></Button>
+                    : id && status !== 'DRAFT' ? <Button variant="brand" onClick={() => submit(false)} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+                      : <Button variant="brand" onClick={() => submit(true)} disabled={saving}><i className="bi bi-broadcast me-1" />{saving ? 'Publishing…' : 'Publish event'}</Button>}
                 </div>
               </div>
             </Form>
@@ -353,9 +366,9 @@ export default function EventForm() {
         </Col>
         <Col lg={4}>
           <div className="sticky-lg">
-            <Panel title="Live preview" icon="eye">
+            <Panel title="Preview" icon="eye">
               <div className="event-band rounded mb-2" style={{ '--cat': CATEGORIES[f.category].color }}>
-                <div className="date-block"><span className="dm">{f.startsAt ? new Date(f.startsAt).toLocaleDateString('en-IN', { month: 'short' }) : '—'}</span><span className="dd">{f.startsAt ? new Date(f.startsAt).getDate() : '–'}</span></div>
+                <div className="date-block"><span className="dm">{new Date(f.startsAt || Date.now()).toLocaleDateString('en-IN', { month: 'short' })}</span><span className="dd">{new Date(f.startsAt || Date.now()).getDate()}</span></div>
                 <span className="cat-chip"><i className={`bi bi-${CATEGORIES[f.category].icon} me-1`} />{CATEGORIES[f.category].label}</span>
               </div>
               <div className="fw-bold">{f.title || 'Event title'}</div>
@@ -363,10 +376,9 @@ export default function EventForm() {
               <div className="event-meta"><i className="bi bi-geo-alt" />{venue?.name || 'Venue'}</div>
               <div className="d-flex flex-wrap gap-1 mt-2">
                 <Tag tone="primary" icon={MODES[f.mode].icon}>{MODES[f.mode].short}</Tag>
-                {f.allowOutsiders && <Tag tone="info" icon="globe2">Guests welcome</Tag>}
                 <Tag icon="people">{f.capacity || 0} seats</Tag>
               </div>
-              <p className="small-2 text-muted-2 mt-2 mb-0">{eligibilitySummary(f)}</p>
+              <p className="small-2 text-muted-2 mt-2 mb-0">{eligibilitySummary(f.eligibility)}</p>
             </Panel>
           </div>
         </Col>

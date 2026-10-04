@@ -16,50 +16,23 @@ export function toCSV(rows, columns) {
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const head = columns.map((c) => esc(c.label)).join(',');
-  const body = rows.map((r) => columns.map((c) => esc(typeof c.value === 'function' ? c.value(r) : r[c.key])).join(','));
+  const body = rows.map((r) => columns.map((c) => esc(c.value(r))).join(','));
   return [head, ...body].join('\r\n');
-}
-
-/** Small RFC-4180-ish parser: handles quoted fields, escaped quotes and CRLF. */
-export function parseCSV(text) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (c === '"') quoted = false;
-      else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n' || c === '\r') {
-      if (c === '\r' && text[i + 1] === '\n') i++;
-      row.push(field); field = '';
-      if (row.some((x) => x.trim() !== '')) rows.push(row);
-      row = [];
-    } else field += c;
-  }
-  row.push(field);
-  if (row.some((x) => x.trim() !== '')) rows.push(row);
-  return rows;
 }
 
 const icsDate = (ts) => new Date(ts).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 export function eventToICS(ev, venueName) {
-  const lines = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//GNDEC Smart Campus Events//Demo//EN', 'BEGIN:VEVENT',
-    `UID:${ev.id}@events.gndec.demo`, `DTSTAMP:${icsDate(Date.now())}`, `DTSTART:${icsDate(ev.startsAt)}`, `DTEND:${icsDate(ev.endsAt)}`,
-    `SUMMARY:${ev.title}`, `LOCATION:${venueName || ''}, GNDEC Ludhiana`, `DESCRIPTION:${(ev.description || '').replace(/\n/g, '\\n')}`,
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//GNDEC Smart Campus Events//EN', 'BEGIN:VEVENT',
+    `UID:event-${ev.id}@events.gndec`, `DTSTAMP:${icsDate(Date.now())}`, `DTSTART:${icsDate(ev.startsAt)}`, `DTEND:${icsDate(ev.endsAt)}`,
+    `SUMMARY:${ev.title}`, `LOCATION:${venueName || ''}, GNDEC Ludhiana`,
     'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:Event reminder', 'END:VALARM',
     'END:VEVENT', 'END:VCALENDAR',
-  ];
-  return lines.join('\r\n');
+  ].join('\r\n');
 }
 
-/** Center-crops an image file to a square and returns a small JPEG data URL. */
-export function resizeImage(file, size = 256) {
+/** Center-crops an image to a square JPEG blob before upload (keeps photos small). */
+export function resizeImage(file, size = 320) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Could not read the file'));
@@ -72,7 +45,7 @@ export function resizeImage(file, size = 256) {
         canvas.width = size;
         canvas.height = size;
         canvas.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not process the image'))), 'image/jpeg', 0.85);
       };
       img.src = reader.result;
     };

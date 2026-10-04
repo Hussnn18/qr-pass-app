@@ -15,6 +15,7 @@ export function useTitle(title) {
   }, [title]);
 }
 
+/** Small per-browser preferences (layout toggle, sound on/off). Never used for data. */
 export function usePersistentState(key, initial) {
   const [value, setValue] = useState(() => {
     try {
@@ -25,7 +26,11 @@ export function usePersistentState(key, initial) {
     }
   });
   useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* storage unavailable */
+    }
   }, [key, value]);
   return [value, setValue];
 }

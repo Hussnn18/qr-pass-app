@@ -109,6 +109,13 @@ class EventManagementTests extends IntegrationTest {
         MvcResult list = get_("/api/v1/events", s).andExpect(status().isOk()).andReturn();
         assertThat((List<String>) read(list, "$.items[*].title")).containsExactly("Visible Event");
         get_("/api/v1/events/" + draft.getId(), org).andExpect(status().isOk());
+
+        // Cancelled events stay listed for reference, but "only events I can join" leaves them out.
+        fx.event(org, hall).status(Event.Status.CANCELLED).title("Called Off").startsIn(Duration.ofDays(10)).save();
+        MvcResult all = get_("/api/v1/events", s).andReturn();
+        assertThat((List<String>) read(all, "$.items[*].title")).containsExactly("Visible Event", "Called Off");
+        MvcResult joinable = get_("/api/v1/events?eligibleOnly=true", s).andReturn();
+        assertThat((List<String>) read(joinable, "$.items[*].title")).containsExactly("Visible Event");
     }
 
     @Test

@@ -1,14 +1,10 @@
 import { useEffect } from 'react';
-import { Alert, Button, Nav } from 'react-bootstrap';
-import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { store, useStore } from '../../store/store';
-import { useCurrentUser } from '../../store/session';
-import { eventPhase } from '../../utils/eligibility';
-import { fromNow } from '../../utils/format';
-import { useNow, useTitle } from '../../utils/hooks';
+import { Button } from 'react-bootstrap';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { useTitle } from '../../utils/hooks';
 import { ConfirmHost, ToastHost } from '../feedback';
-import { EmptyState } from '../ui';
-import DemoPanel from './DemoPanel';
+import { EmptyState, Loading } from '../ui';
 import PortalHeader from './PortalHeader';
 import PortalNav from './PortalNav';
 
@@ -25,23 +21,9 @@ function Footer() {
     <footer className="portal-footer">
       <div className="portal-container d-flex flex-wrap justify-content-between gap-2">
         <span>Smart Campus Event Management &amp; Secure QR Access System — Major Project, GNDEC Ludhiana</span>
-        <span>UI prototype with mock data · no real accounts or payments</span>
+        <span>Objectives 1–3: events, secure registration, QR entry</span>
       </div>
     </footer>
-  );
-}
-
-/** Sample dates are generated around "now"; once the live sample event is over, offer to regenerate. */
-function StaleDataBanner() {
-  useNow(60000);
-  const s = useStore();
-  const anyLive = s.events.some((e) => eventPhase(e) === 'LIVE');
-  if (anyLive || Date.now() - s.seededAt < 2 * 36e5) return null;
-  return (
-    <Alert variant="warning" className="stale-banner d-flex flex-wrap gap-2 align-items-center justify-content-between py-2">
-      <span><i className="bi bi-calendar-x me-2" />The sample data was generated {fromNow(s.seededAt)}, so the demo's "happening now" event has ended.</span>
-      <Button size="sm" variant="warning" onClick={() => store.reset()}>Regenerate around now</Button>
-    </Alert>
   );
 }
 
@@ -53,7 +35,6 @@ export function Shell({ children }) {
       <PortalHeader />
       {children}
       <Footer />
-      <DemoPanel />
       <ToastHost />
       <ConfirmHost />
     </>
@@ -66,7 +47,6 @@ export function PortalLayout() {
     <Shell>
       <div className="portal-container">
         <PortalNav />
-        <StaleDataBanner />
         <main id="main" tabIndex={-1}>
           <Outlet />
         </main>
@@ -75,17 +55,14 @@ export function PortalLayout() {
   );
 }
 
-/** Signed-out layout: same banner, a slim menu with public links. */
+/** Signed-out layout: same banner, slim menu. */
 export function PublicLayout() {
   return (
     <Shell>
       <div className="portal-container">
         <nav className="portal-nav navbar px-3" aria-label="Public menu">
           <Link to="/login" className="portal-brand navbar-brand">Home</Link>
-          <Nav className="flex-row flex-wrap gap-2 ms-auto">
-            <Nav.Link as={NavLink} to="/login" className="portal-btn btn btn-light"><i className="bi bi-box-arrow-in-right" /> Sign in</Nav.Link>
-            <Nav.Link as={NavLink} to="/signup" className="portal-btn btn btn-light"><i className="bi bi-person-plus" /> Guest sign-up</Nav.Link>
-          </Nav>
+          <span className="ms-auto small text-muted-2 d-none d-sm-inline">Smart Campus Events · GNDEC Ludhiana</span>
         </nav>
         <main id="main" tabIndex={-1}>
           <Outlet />
@@ -96,10 +73,13 @@ export function PublicLayout() {
 }
 
 export function RequireAuth() {
-  const user = useCurrentUser();
+  const { ready, user } = useAuth();
   const loc = useLocation();
+  if (!ready) return <Shell><div className="portal-container pt-4"><Loading label="Checking your session…" /></div></Shell>;
   if (!user) return <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />;
-  if (user.mustChangePassword && loc.pathname !== '/change-password') return <Navigate to="/change-password" replace state={{ next: loc.pathname + loc.search }} />;
+  if (user.mustChangePassword && loc.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace state={{ next: loc.pathname + loc.search }} />;
+  }
   return <Outlet />;
 }
 
@@ -107,13 +87,13 @@ function AccessDenied({ roles }) {
   useTitle('No access');
   return (
     <EmptyState icon="shield-lock" title="You don't have access to this page" action={<Button as={Link} to="/">Go to your home page</Button>}>
-      This area is for {roles.map((r) => r.toLowerCase()).join(' / ')} accounts. In the real system the API would also return 403.
+      This area is for {roles.map((r) => r.toLowerCase()).join(' / ')} accounts.
     </EmptyState>
   );
 }
 
 export function RequireRole({ roles }) {
-  const user = useCurrentUser();
+  const { user } = useAuth();
   if (!roles.includes(user.role)) return <AccessDenied roles={roles} />;
   return <Outlet />;
 }

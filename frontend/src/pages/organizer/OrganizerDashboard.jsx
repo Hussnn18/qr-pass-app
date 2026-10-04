@@ -1,41 +1,29 @@
 import { Button, Col, ProgressBar, Row, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { useStore } from '../../store/store';
-import { byId, eventStats, managedEvents, userSubtitle } from '../../store/selectors';
-import { eventPhase } from '../../utils/eligibility';
+import { useApi } from '../../api/useApi';
+import { eventPhase } from '../../utils/events';
 import { fmtDateShort, fmtTime, fromNow, pct } from '../../utils/format';
 import { useTitle } from '../../utils/hooks';
-import { Avatar, EmptyState, Panel, StatTile, StatusBadge, Tag } from '../../components/ui';
-import { CompareBars } from '../../components/Charts';
+import { Avatar, EmptyState, Loading, Panel, StatTile, StatusBadge } from '../../components/ui';
 
 export default function OrganizerDashboard({ user }) {
   useTitle('Organizer home');
-  const s = useStore();
+  const events = useApi('/manage/events', { poll: 30000 });
+  const requests = useApi('/manage/requests?limit=6');
   const now = Date.now();
-  const mine = managedEvents(s, user);
-  const ids = new Set(mine.map((e) => e.id));
+  const mine = events.data || [];
   const live = mine.filter((e) => eventPhase(e) === 'LIVE');
-  const upcoming = mine.filter((e) => e.startsAt > now && ['PUBLISHED', 'CLOSED', 'DRAFT'].includes(e.status)).sort((a, b) => a.startsAt - b.startsAt);
-  const pending = s.registrations.filter((r) => ids.has(r.eventId) && r.status === 'PENDING');
-  const todayStart = new Date().setHours(0, 0, 0, 0);
-  const checkinsToday = s.attendance.filter((a) => ids.has(a.eventId) && a.at >= todayStart).length;
-  const regs = s.registrations.filter((r) => ids.has(r.eventId) && r.status !== 'CANCELLED' && r.status !== 'REJECTED').length;
+  const upcoming = mine.filter((e) => e.startsAt > now && ['PUBLISHED', 'CLOSED', 'DRAFT'].includes(e.status));
+  const pending = mine.reduce((n, e) => n + e.stats.pending, 0);
+  const active = mine.filter((e) => e.endsAt > now).reduce((n, e) => n + e.stats.confirmed + e.stats.pending + e.stats.waitlisted, 0);
+  const enteredLive = live.reduce((n, e) => n + e.stats.entered, 0);
 
   const attention = [];
-  mine.forEach((e) => {
-    const st = eventStats(s, e.id);
-    if (st.pending) attention.push({ e, icon: 'person-check', tone: 'warning', text: `${st.pending} request${st.pending > 1 ? 's' : ''} waiting for approval`, to: `/manage/events/${e.id}?tab=registrations` });
-    if (e.status === 'DRAFT') attention.push({ e, icon: 'pencil', tone: 'secondary', text: 'Draft — not visible to students yet', to: `/manage/events/${e.id}/edit` });
-    if (['PUBLISHED', 'CLOSED'].includes(e.status) && e.endsAt > now) {
-      const unstaffed = e.gateIds.filter((g) => !s.assignments.some((a) => a.eventId === e.id && a.gateId === g));
-      if (unstaffed.length) attention.push({ e, icon: 'shield-exclamation', tone: 'danger', text: `${unstaffed.length} gate${unstaffed.length > 1 ? 's have' : ' has'} no security assigned`, to: `/manage/events/${e.id}?tab=gates` });
-    }
-    if (st.waitlisted && st.remaining > 0) attention.push({ e, icon: 'list-ol', tone: 'info', text: `${st.waitlisted} waitlisted and ${st.remaining} seats free`, to: `/manage/events/${e.id}?tab=registrations` });
-  });
-
-  const chart = mine.filter((e) => e.status !== 'DRAFT').slice(0, 8).map((e) => {
-    const st = eventStats(s, e.id);
-    return { name: e.title.split(/[—:-]/)[0].trim().slice(0, 18), registered: st.active, attended: st.attended };
+  mine.filter((e) => e.endsAt > now).forEach((e) => {
+    if (e.stats.pending) attention.push({ e, icon: 'person-check', tone: 'warning', text: `${e.stats.pending} request${e.stats.pending > 1 ? 's' : ''} waiting for approval`, to: `/manage/events/${e.id}?tab=registrations` });
+    if (e.status === 'DRAFT') attention.push({ e, icon: 'pencil', tone: 'secondary', text: 'Draft — students can’t see it yet', to: `/manage/events/${e.id}` });
+    if (['PUBLISHED', 'CLOSED'].includes(e.status) && e.gates.length === 0) attention.push({ e, icon: 'door-closed', tone: 'danger', text: 'No entry gates', to: `/manage/events/${e.id}/edit` });
+    if (e.stats.waitlisted && e.stats.remaining > 0) attention.push({ e, icon: 'list-ol', tone: 'info', text: `${e.stats.waitlisted} waitlisted and ${e.stats.remaining} seats free`, to: `/manage/events/${e.id}?tab=registrations` });
   });
 
   return (
@@ -44,65 +32,57 @@ export default function OrganizerDashboard({ user }) {
         <Avatar user={user} size={56} />
         <div className="flex-grow-1">
           <h1>Good to see you, {user.name.replace(/^(Prof|Dr|Mr|Ms)\.?\s+/, '').split(' ')[0]}</h1>
-          <div className="kv">{userSubtitle(user)} · {mine.length} event{mine.length === 1 ? '' : 's'}</div>
+          <div className="kv">{user.unit} · {mine.length} event{mine.length === 1 ? '' : 's'}</div>
         </div>
         <Button as={Link} to="/manage/events/new" variant="brand"><i className="bi bi-calendar-plus me-1" />Create event</Button>
       </div>
 
       <Row className="g-3 mb-3">
-        <Col xs={6} lg={3}><StatTile icon="calendar3" label="Upcoming events" value={upcoming.length} tone="primary" to="/manage/events" /></Col>
-        <Col xs={6} lg={3}><StatTile icon="person-check" label="Pending approvals" value={pending.length} tone="warning" to="/manage/events?filter=pending" /></Col>
-        <Col xs={6} lg={3}><StatTile icon="people" label="Active registrations" value={regs} tone="success" /></Col>
-        <Col xs={6} lg={3}><StatTile icon="door-open" label="Check-ins today" value={checkinsToday} tone="brand" to="/manage/live" /></Col>
+        <Col xs={6} lg={3}><StatTile icon="calendar3" label="Upcoming events" value={events.data ? upcoming.length : '…'} tone="primary" to="/manage/events?filter=upcoming" /></Col>
+        <Col xs={6} lg={3}><StatTile icon="person-check" label="Pending approvals" value={events.data ? pending : '…'} tone="warning" to="/manage/events?filter=pending" /></Col>
+        <Col xs={6} lg={3}><StatTile icon="people" label="Active registrations" value={events.data ? active : '…'} tone="success" /></Col>
+        <Col xs={6} lg={3}><StatTile icon="door-open" label="Entered (live events)" value={events.data ? enteredLive : '…'} tone="brand" to="/manage/events?filter=live" /></Col>
       </Row>
 
-      {live.map((e) => {
-        const st = eventStats(s, e.id);
-        return (
-          <Panel key={e.id} className="mb-3 border-danger" title={<><span className="live-chip me-2">● LIVE</span>{e.title}</>} actions={<Button size="sm" variant="brand" as={Link} to={`/manage/events/${e.id}?tab=live`}><i className="bi bi-broadcast me-1" />Open live view</Button>}>
-            <Row className="align-items-center g-3">
-              <Col md={3} className="text-center"><div className="big-counter">{st.attended}</div><div className="small text-muted-2">checked in of {st.approved}</div></Col>
-              <Col md={9}>
-                <ProgressBar now={pct(st.attended, st.approved)} label={`${pct(st.attended, st.approved)}%`} style={{ height: 18 }} aria-label="Attendance progress" />
-                <div className="small text-muted-2 mt-2">Ends {fmtTime(e.endsAt)} · {byId(s.locations, e.venueId)?.name}</div>
-              </Col>
-            </Row>
-          </Panel>
-        );
-      })}
+      {live.map((e) => (
+        <Panel key={e.id} className="mb-3 border-danger" title={<><span className="live-chip me-2">● LIVE</span>{e.title}</>}
+          actions={<div className="d-flex gap-2"><Button size="sm" variant="light" as={Link} to="/scan"><i className="bi bi-upc-scan me-1" />Scanner</Button><Button size="sm" variant="brand" as={Link} to={`/manage/events/${e.id}`}>Manage</Button></div>}>
+          <Row className="align-items-center g-3">
+            <Col md={3} className="text-center"><div className="big-counter">{e.stats.entered}</div><div className="small text-muted-2">entered of {e.stats.confirmed}</div></Col>
+            <Col md={9}>
+              <ProgressBar now={pct(e.stats.entered, e.stats.confirmed)} label={`${pct(e.stats.entered, e.stats.confirmed)}%`} style={{ height: 18 }} aria-label="Share entered" />
+              <div className="small text-muted-2 mt-2">Ends {fmtTime(e.endsAt)} · {e.venue.name} · refreshes every 30 s</div>
+            </Col>
+          </Row>
+        </Panel>
+      ))}
 
       <Row className="g-3">
-        <Col lg={7} className="section-gap">
+        <Col lg={7}>
           <Panel title="Upcoming events" icon="calendar-event" flush actions={<Link to="/manage/events" className="small">All events</Link>}>
-            {!upcoming.length ? <EmptyState icon="calendar-plus" title="No upcoming events" action={<Button as={Link} to="/manage/events/new">Create one</Button>} /> : (
+            {!events.data ? <Loading /> : !upcoming.length ? <EmptyState icon="calendar-plus" title="No upcoming events" action={<Button as={Link} to="/manage/events/new">Create one</Button>} /> : (
               <Table hover responsive className="mb-0 align-middle table-stack">
                 <thead><tr><th>Event</th><th>Date</th><th>Seats</th><th>Status</th></tr></thead>
                 <tbody>
-                  {upcoming.slice(0, 6).map((e) => {
-                    const st = eventStats(s, e.id);
-                    return (
-                      <tr key={e.id}>
-                        <td className="td-main"><Link to={`/manage/events/${e.id}`} className="fw-600 text-decoration-none">{e.title}</Link></td>
-                        <td data-label="Date">{fmtDateShort(e.startsAt)} · {fmtTime(e.startsAt)}</td>
-                        <td data-label="Seats" style={{ minWidth: 120 }}>
-                          <div className="small-2">{st.approved}/{e.capacity}</div>
-                          <ProgressBar now={st.fill} style={{ height: 5 }} aria-label={`${st.fill}% full`} />
-                        </td>
-                        <td data-label="Status"><StatusBadge kind="event" status={e.status} /></td>
-                      </tr>
-                    );
-                  })}
+                  {upcoming.slice(0, 8).map((e) => (
+                    <tr key={e.id}>
+                      <td className="td-main"><Link to={`/manage/events/${e.id}`} className="fw-600 text-decoration-none">{e.title}</Link></td>
+                      <td data-label="Date">{fmtDateShort(e.startsAt)} · {fmtTime(e.startsAt)}</td>
+                      <td data-label="Seats" style={{ minWidth: 120 }}>
+                        <div className="small-2">{e.stats.confirmed}/{e.stats.capacity}</div>
+                        <ProgressBar now={pct(e.stats.confirmed, e.stats.capacity)} style={{ height: 5 }} aria-label="Seats filled" />
+                      </td>
+                      <td data-label="Status"><StatusBadge kind="event" status={e.status} /></td>
+                    </tr>
+                  ))}
                 </tbody>
               </Table>
             )}
           </Panel>
-          <Panel title="Registrations vs check-ins" icon="bar-chart-line">
-            <CompareBars data={chart} />
-          </Panel>
         </Col>
-        <Col lg={5}>
+        <Col lg={5} className="section-gap">
           <Panel title="Needs your attention" icon="exclamation-diamond" flush>
-            {!attention.length ? <EmptyState icon="check2-circle" title="All clear">Nothing needs action right now.</EmptyState> : (
+            {!events.data ? <Loading /> : !attention.length ? <EmptyState icon="check2-circle" title="All clear">Nothing needs action right now.</EmptyState> : (
               <ul className="feed">
                 {attention.slice(0, 8).map((a, i) => (
                   <li key={i}>
@@ -119,19 +99,17 @@ export default function OrganizerDashboard({ user }) {
           </Panel>
           <Panel title="Latest requests" icon="inbox" flush>
             <ul className="feed">
-              {pending.sort((a, b) => b.registeredAt - a.registeredAt).slice(0, 5).map((r) => {
-                const u = byId(s.users, r.userId);
-                return (
-                  <li key={r.id}>
-                    <Avatar user={u} size={30} />
-                    <div className="flex-grow-1 min-w-0">
-                      <div className="small fw-600">{u?.name} {u?.role === 'GUEST' && <Tag tone="info">Guest</Tag>}</div>
-                      <div className="small-2 text-muted-2 text-truncate">{byId(s.events, r.eventId)?.title} · {fromNow(r.registeredAt)}</div>
-                    </div>
-                  </li>
-                );
-              })}
-              {!pending.length && <li className="small text-muted-2">No pending requests.</li>}
+              {(requests.data || []).map((r) => (
+                <li key={r.registrationId}>
+                  <Avatar user={r.person} size={30} />
+                  <div className="flex-grow-1 min-w-0">
+                    <div className="small fw-600">{r.person.name} <span className="mono text-muted-2 fw-normal">{r.person.idLabel}</span></div>
+                    <div className="small-2 text-muted-2 text-truncate">{r.eventTitle} · {fromNow(r.registeredAt)}</div>
+                  </div>
+                  <Button size="sm" variant="light" as={Link} to={`/manage/events/${r.eventId}?tab=registrations`}>Open</Button>
+                </li>
+              ))}
+              {requests.data && !requests.data.length && <li className="small text-muted-2">No pending requests.</li>}
             </ul>
           </Panel>
         </Col>

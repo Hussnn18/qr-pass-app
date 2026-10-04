@@ -69,7 +69,8 @@ public class EventService {
                     case "all" -> true;
                     default -> !e.getEndsAt().isBefore(now);
                 })
-                .filter(e -> !eligibleOnly || !participant || eligibility.check(viewer, e).eligible())
+                .filter(e -> !eligibleOnly || e.getStatus() == Event.Status.PUBLISHED
+                        && (!participant || eligibility.check(viewer, e).eligible()))
                 .sorted("past".equals(range) ? Comparator.comparing(Event::getStartsAt).reversed() : Comparator.comparing(Event::getStartsAt))
                 .toList();
         if (openOnly) {
