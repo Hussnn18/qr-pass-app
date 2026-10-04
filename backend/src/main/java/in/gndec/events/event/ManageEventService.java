@@ -243,6 +243,14 @@ public class ManageEventService {
         }
         if (ids != null) {
             for (Long id : ids) {
+                // People already on the event (e.g. the admin who created it without picking organizers) and the
+                // caller stay as they are; only newly added people must be active organizer accounts.
+                User kept = id.equals(me.getId()) ? me
+                        : current.stream().filter(c -> c.getId().equals(id)).findFirst().orElse(null);
+                if (kept != null) {
+                    out.add(kept);
+                    continue;
+                }
                 User u = users.findById(id).orElseThrow(() -> ApiException.field("organizerIds", "Unknown organizer."));
                 if (u.getRole() != Role.ORGANIZER || u.getStatus() != User.Status.ACTIVE) {
                     throw ApiException.field("organizerIds", u.getFullName() + " is not an active organizer.");

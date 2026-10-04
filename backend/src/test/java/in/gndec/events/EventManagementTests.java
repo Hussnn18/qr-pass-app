@@ -119,6 +119,29 @@ class EventManagementTests extends IntegrationTest {
     }
 
     @Test
+    void adminCanEditAnEventTheyOrganiseThemselves() throws Exception {
+        User admin = fx.staff(Role.ADMIN, "admin@test.gndec");
+        User otherAdmin = fx.staff(Role.ADMIN, "admin2@test.gndec");
+        User student = fx.student("2302204", "CSE", 7, "A");
+        Instant start = Instant.now().plus(Duration.ofDays(6));
+        String body = body(start, start.plus(Duration.ofHours(2)), Instant.now(), start.minus(Duration.ofDays(1)));
+        // No organizers picked: the admin who created it manages it.
+        MvcResult created = post_("/api/v1/manage/events", admin, body).andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizers[0].id").value(admin.getId().intValue())).andReturn();
+        String url = "/api/v1/manage/events/" + read(created, "$.id");
+        String withOrganizers = body.replace("\"gateIds\"", "\"organizerIds\":[%s],\"gateIds\"");
+
+        // The edit form sends that list back unchanged, admin included.
+        put_(url, admin, withOrganizers.formatted(admin.getId())).andExpect(status().isOk());
+        // Another admin can keep the first one and add a real organizer...
+        put_(url, otherAdmin, withOrganizers.formatted(admin.getId() + "," + org.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizers.length()").value(2));
+        // ...but anyone newly added must be an active organizer account.
+        put_(url, admin, withOrganizers.formatted(admin.getId() + "," + student.getId())).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.organizerIds").value(student.getFullName() + " is not an active organizer."));
+    }
+
+    @Test
     void participantListAndCsvExport_T_EVT_05() throws Exception {
         Event e = fx.event(org, hall).capacity(2).save();
         for (String urn : List.of("2302211", "2302212", "2302213")) {
