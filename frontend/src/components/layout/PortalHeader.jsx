@@ -5,7 +5,7 @@ export default function PortalHeader() {
         <img src="/header-banner.png" alt="Guru Nanak Dev Engineering College, Ludhiana — An Autonomous College under UGC Act 1956" width="1610" height="264" />
       </div>
       <div className="portal-compact-header">
-        <span className="compact-emblem" aria-hidden="true">GNDEC</span>
+        <img className="compact-emblem" src="/gndec-logo.png" alt="" width="220" height="220" />
         <div>
           <div className="compact-title">Guru Nanak Dev Engineering College</div>
           <div className="compact-sub" lang="pa">ਗੁਰੂ ਨਾਨਕ ਦੇਵ ਇੰਜੀਨੀਅਰਿੰਗ ਕਾਲਜ, ਲੁਧਿਆਣਾ</div>

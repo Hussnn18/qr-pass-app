@@ -97,7 +97,9 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, [tabindex]:focus-visi
 .skip-link:focus { left: 8px; color: #fff; }
 
 /* ---------------------------------------------------------------- portal header */
-.portal-banner { max-width: 1450px; margin: 0 auto; border-bottom: 3px solid var(--gn-red); line-height: 0; }
+/* The page grows with the window up to the banner's own width (1610px), so wide or zoomed-out screens
+   aren't left with empty margins and the banner never gets stretched blurry. */
+.portal-banner { max-width: 1610px; margin: 0 auto; border-bottom: 3px solid var(--gn-red); line-height: 0; }
 .portal-banner img { width: 100%; height: auto; display: block; }
 .portal-compact-header { display: none; }
 @media (max-width: 575.98px) {
@@ -108,13 +110,13 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, [tabindex]:focus-visi
   }
 }
 .compact-emblem {
-  width: 42px; height: 42px; border-radius: 50%; background: #fff; color: var(--gn-maroon);
-  display: grid; place-items: center; font-weight: 800; font-size: 0.72rem; flex-shrink: 0; border: 2px solid #f3c9c9;
+  width: 52px; height: 52px; flex-shrink: 0; object-fit: contain; background: #fff; padding: 2px;
+  border-radius: 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 .compact-title { font-weight: 700; line-height: 1.15; font-size: 0.95rem; }
 .compact-sub { font-size: 0.72rem; opacity: 0.92; }
 
-.portal-container { max-width: 1290px; margin: 0 auto; padding: 0 16px; }
+.portal-container { max-width: 1610px; margin: 0 auto; padding: 0 clamp(12px, 2vw, 28px); }
 
 /* ---------------------------------------------------------------- portal menu bar */
 .portal-nav.navbar {
@@ -289,7 +291,7 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, [tabindex]:focus-visi
 }
 .toggle-chip[aria-pressed='true'] { background: var(--gn-navy); border-color: var(--gn-navy); color: #fff; }
 
-.stepper { display: flex; gap: 0.35rem; list-style: none; padding: 0; margin: 0 0 1.25rem; overflow-x: auto; }
+.stepper { display: flex; flex-wrap: wrap; gap: 0.35rem; list-style: none; padding: 0; margin: 0 0 1.25rem; } /* wraps on narrow screens so every step stays visible */
 .stepper button {
   border: 1px solid var(--gn-border); background: #fff; border-radius: 6px; padding: 0.45rem 0.75rem; display: flex; gap: 0.5rem; align-items: center;
   font-size: 0.85rem; font-weight: 600; color: #555; white-space: nowrap;
@@ -398,7 +400,7 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, [tabindex]:focus-visi
 tr.row-error td { background: #fff5f5 !important; }
 
 /* ---------------------------------------------------------------- responsive tables → cards */
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) { /* phones and tablets: table rows become cards instead of scrolling sideways */
   .table-stack thead { display: none; }
   .table-stack, .table-stack tbody, .table-stack tr, .table-stack td { display: block; width: 100%; }
   .table-stack tr { border: 1px solid var(--gn-border); border-radius: 8px; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: #fff; }
@@ -412,7 +414,6 @@ tr.row-error td { background: #fff5f5 !important; }
 
 /* ---------------------------------------------------------------- shell extras */
 .portal-footer { margin-top: 3rem; border-top: 3px solid var(--gn-navy); background: #f3f3f5; color: var(--gn-muted); font-size: 0.8rem; padding: 1.1rem 0 4.5rem; }
-.demo-fab { position: fixed; right: 16px; bottom: 16px; z-index: 1040; border-radius: 999px !important; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); }
 .toast-host { padding-bottom: 72px !important; }
 .toast { border: 0; border-left: 4px solid var(--tone); box-shadow: 0 8px 24px rgba(16, 24, 40, 0.18); }
 .flow-item { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0; border-bottom: 1px solid #f0f0f2; }
