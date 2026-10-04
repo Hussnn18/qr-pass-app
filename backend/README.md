@@ -1,6 +1,8 @@
 # Backend — Spring Boot API
 
-REST API under `/api/v1`. Interactive docs: http://localhost:8080/swagger-ui.html while it runs.
+REST API under `/api/v1`. Interactive docs: http://localhost:8080/swagger-ui.html while it runs (turned off in `prod`).
+
+In production the same jar also serves the built React site (the root [Dockerfile](../Dockerfile) copies it into `static/`), so the site and the API share one URL. Deployment steps: [DEPLOY.md](../DEPLOY.md).
 
 ## Profiles
 
@@ -9,9 +11,11 @@ REST API under `/api/v1`. Interactive docs: http://localhost:8080/swagger-ui.htm
 | `dev` (default) | MySQL `smart_campus_events` | built-in dev values | loaded when the users table is empty |
 | `supabase` | Supabase / any PostgreSQL, tables in schema `scems` | built-in dev values | loaded when the users table is empty |
 | `h2` | in-memory H2 (MySQL mode), wiped on restart | built-in dev values | loaded on every start |
-| `prod` | from env | **must** come from env | off |
+| `prod` | from env (`prod,postgres` for Supabase) | **must** come from env | off; the first admin comes from `ADMIN_EMAIL` / `ADMIN_PASSWORD` |
 
 The MySQL setup script is [db/create-database.sql](db/create-database.sql). Migrations live in `src/main/resources/db/migration`: `common/` for data, and one schema file per database in `mysql/` and `postgresql/`. Flyway picks the folder matching the database, so a schema change must be made in both.
+
+Profile photos are stored in the database (`photos` table), so they survive redeploys on hosts whose disk is temporary.
 
 Settings can be environment variables or `KEY=value` lines in `backend/.env` (git-ignored; start from [.env.example](.env.example)). Real environment variables win over `.env`.
 
@@ -27,13 +31,13 @@ Settings can be environment variables or `KEY=value` lines in `backend/.env` (gi
 | Variable | Default (dev) | Purpose |
 |---|---|---|
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | `jdbc:mysql://localhost:3306/smart_campus_events` / `scems_app` / `scems_local_dev` | database connection (required for `supabase` and `prod`) |
-| `DB_SCHEMA` / `DB_POOL_SIZE` | `scems` / `5` | `supabase` profile only |
+| `DB_SCHEMA` / `DB_POOL_SIZE` | `scems` / `5` | `postgres` profile (part of `supabase` and `prod,postgres`) |
 | `JWT_SECRET` | dev-only value | HS256 signing key, at least 32 bytes |
 | `PASS_KEY` | dev-only value | base64 of 32 random bytes; AES-256-GCM key for stored pass tokens |
-| `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS origin |
-| `COOKIE_SECURE` | `false` | set `true` behind HTTPS |
-| `UPLOAD_DIR` | `uploads` | profile photos |
+| `FRONTEND_ORIGIN` | `RENDER_EXTERNAL_URL`, else `http://localhost:5173` | sites allowed to call the API, comma-separated; set it only for a custom domain |
+| `COOKIE_SECURE` | `false` (`true` in `prod`) | HTTPS-only refresh cookie |
 | `SEED_DEMO_DATA` | `true` | load demo data in dev |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | unset | create the first administrator when none exists; the password must be changed at first sign-in |
 | `PORT` | `8080` | HTTP port |
 
 Generate production secrets with `openssl rand -base64 48` (JWT) and `openssl rand -base64 32` (pass key). Keep `PASS_KEY` fixed once passes exist: the app decrypts stored tokens to draw the QR code, PNG and PDF, so a new key stops existing passes from displaying (gate checks still work because they compare hashes).
@@ -41,7 +45,7 @@ Generate production secrets with `openssl rand -base64 48` (JWT) and `openssl ra
 ## Build and run
 
 ```bash
-./mvnw test                     # 31 integration tests on H2
+./mvnw test                     # 35 integration tests on H2
 ./mvnw test -Ddb=postgres       # the same tests on a real embedded PostgreSQL 17
 ./mvnw package                  # target/smart-campus-events-0.0.1-SNAPSHOT.jar
 java -jar target/smart-campus-events-0.0.1-SNAPSHOT.jar --spring.profiles.active=h2

@@ -12,6 +12,8 @@ Major Project: event management with secure QR entry passes. This branch covers 
 | [frontend/](frontend/) | React 19 + Vite, styled after the GNDEC portal |
 | [qr-pass-app/](qr-pass-app/) | The Minor project (Node + SQLite), kept for reference. Also tagged `minor-final`. |
 
+**Deploying:** one Render web service runs the API and serves the site, with the database on Supabase. Step-by-step: [DEPLOY.md](DEPLOY.md).
+
 ## Quick start
 
 Requirements: JDK 21+, Node 20.19+ or 22.12+, and one database: local MySQL 8, a free Supabase project, or neither (H2 option).
@@ -26,7 +28,7 @@ Requirements: JDK 21+, Node 20.19+ or 22.12+, and one database: local MySQL 8, a
 
   This creates the `smart_campus_events` database and the `scems_app` user.
 
-- **Supabase** (hosted PostgreSQL, shared by the whole team). Create a project at supabase.com (region: South Asia, Mumbai). Then in the project click **Connect → Session pooler**, copy [backend/.env.example](backend/.env.example) to `backend/.env`, and fill in the host, user and database password. `.env` is git-ignored.
+- **Supabase** (hosted PostgreSQL, shared by the whole team). Create a project at supabase.com (region: Southeast Asia, Singapore, next to the Render server). Then in the project click **Connect → Session pooler**, copy [backend/.env.example](backend/.env.example) to `backend/.env`, and fill in the host, user and database password. `.env` is git-ignored.
 
 Either way, Flyway creates the tables on the backend's first start and demo data is loaded.
 
@@ -72,4 +74,4 @@ The demo data is created relative to the current time, so one event is always "h
 cd backend && ./mvnw test
 ```
 
-31 integration tests cover the plan's test list, including 50 parallel registrations for 10 seats and 5 parallel scans of one pass. They run on H2 by default; `./mvnw test -Ddb=postgres` runs the same tests on a real PostgreSQL 17 (downloaded once, no install needed), laid out exactly like the Supabase setup.
+35 integration tests cover the plan's test list and the deployment setup, including 50 parallel registrations for 10 seats and 5 parallel scans of one pass. They run on H2 by default; `./mvnw test -Ddb=postgres` runs the same tests on a real PostgreSQL 17 (downloaded once, no install needed), laid out exactly like the Supabase setup.

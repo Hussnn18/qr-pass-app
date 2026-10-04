@@ -54,7 +54,7 @@ public class Fixtures {
     }
 
     public void wipe() {
-        for (String t : List.of("scan_logs", "entries", "passes", "registrations", "security_assignments", "event_gates",
+        for (String t : List.of("photos", "scan_logs", "entries", "passes", "registrations", "security_assignments", "event_gates",
                 "event_eligible_sections", "event_eligible_semesters", "event_eligible_departments", "event_organizers", "events",
                 "gates", "venues", "refresh_tokens", "audit_logs", "student_profiles", "users")) {
             jdbc.update("delete from " + t);

@@ -10,10 +10,10 @@ spring:
   flyway:
     locations: classpath:db/migration/common,classpath:db/migration/mysql
 app:
+  frontend-origin: http://localhost:5173, https://gndec-events.onrender.com
   jwt:
     secret: test-only-jwt-secret-0123456789abcdef0123456789
   pass-key: dGVzdC1vbmx5LXBhc3Mta2V5LTMyLWJ5dGVzLW9rISE=
-  upload-dir: target/test-uploads
   seed:
     enabled: false
   scheduling:

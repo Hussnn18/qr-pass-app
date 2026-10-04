@@ -1,19 +1,18 @@
 package in.gndec.events.user;
 
 import in.gndec.events.common.ApiException;
-import in.gndec.events.config.AppProperties;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.time.Instant;
 import java.util.UUID;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Profile photos on local disk (app.upload-dir). Files get random names, so a photo URL can't be guessed
- * from a URN (the Minor project saved them as <URN>.jpg in a public folder).
- * The type is checked from the file's first bytes, not from its name.
+ * Profile photos, stored in the database so they survive redeploys on hosts whose disk is temporary.
+ * Photos get random names, so a photo URL can't be guessed from a URN (the Minor project saved them as
+ * <URN>.jpg in a public folder). The type is checked from the file's first bytes, not from its name.
  */
 @Component
 public class PhotoStorage {
@@ -21,12 +20,16 @@ public class PhotoStorage {
     public static final String NAME_PATTERN = "[0-9a-f\\-]{36}\\.(jpg|png)";
     private static final long MAX_BYTES = 2L * 1024 * 1024;
 
-    private final Path dir;
-
-    public PhotoStorage(AppProperties props) {
-        this.dir = Path.of(props.uploadDir() == null ? "uploads" : props.uploadDir()).toAbsolutePath();
+    public record Stored(byte[] data, MediaType type) {
     }
 
+    private final PhotoRepository repo;
+
+    public PhotoStorage(PhotoRepository repo) {
+        this.repo = repo;
+    }
+
+    /** Saves the image and returns its new name. Runs in the caller's transaction. */
     public String save(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw ApiException.badRequest("FILE_MISSING", "Choose an image to upload.");
@@ -34,36 +37,39 @@ public class PhotoStorage {
         if (file.getSize() > MAX_BYTES) {
             throw ApiException.badRequest("FILE_TOO_LARGE", "The image must be 2 MB or smaller.");
         }
+        byte[] bytes;
         try {
-            byte[] bytes = file.getBytes();
-            String ext = isJpeg(bytes) ? "jpg" : isPng(bytes) ? "png" : null;
-            if (ext == null) {
-                throw ApiException.badRequest("FILE_TYPE", "Only JPEG or PNG images are allowed.");
-            }
-            Files.createDirectories(dir);
-            String name = UUID.randomUUID() + "." + ext;
-            Files.write(dir.resolve(name), bytes);
-            return name;
+            bytes = file.getBytes();
         } catch (IOException e) {
-            throw new IllegalStateException("Could not store the photo", e);
+            throw new IllegalStateException("Could not read the uploaded photo", e);
         }
+        String ext = isJpeg(bytes) ? "jpg" : isPng(bytes) ? "png" : null;
+        if (ext == null) {
+            throw ApiException.badRequest("FILE_TYPE", "Only JPEG or PNG images are allowed.");
+        }
+        Photo p = new Photo();
+        p.setName(UUID.randomUUID() + "." + ext);
+        p.setContentType("jpg".equals(ext) ? MediaType.IMAGE_JPEG_VALUE : MediaType.IMAGE_PNG_VALUE);
+        p.setData(bytes);
+        p.setCreatedAt(Instant.now());
+        repo.save(p);
+        return p.getName();
     }
 
     public void delete(String name) {
         if (name != null && name.matches(NAME_PATTERN)) {
-            try {
-                Files.deleteIfExists(dir.resolve(name));
-            } catch (IOException ignored) {
-                // a stale file is harmless
-            }
+            repo.deleteById(name);
         }
     }
 
-    public InputStream open(String name) throws IOException {
-        if (name == null || !name.matches(NAME_PATTERN) || !Files.exists(dir.resolve(name))) {
+    @Transactional(readOnly = true)
+    public Stored load(String name) {
+        if (name == null || !name.matches(NAME_PATTERN)) {
             throw ApiException.notFound("Photo");
         }
-        return Files.newInputStream(dir.resolve(name));
+        return repo.findById(name)
+                .map(p -> new Stored(p.getData(), MediaType.parseMediaType(p.getContentType())))
+                .orElseThrow(() -> ApiException.notFound("Photo"));
     }
 
     private static boolean isJpeg(byte[] b) {

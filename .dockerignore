@@ -1,0 +1,10 @@
+.git/
+.claude/
+qr-pass-app/
+**/node_modules/
+frontend/dist/
+backend/target/
+backend/uploads/
+backend/src/main/resources/static/
+backend/.env
+**/*.log

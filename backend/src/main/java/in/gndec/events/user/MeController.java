@@ -6,9 +6,6 @@ import in.gndec.events.user.UserDtos.ChangePasswordRequest;
 import in.gndec.events.user.UserDtos.Me;
 import in.gndec.events.user.UserDtos.UpdateMeRequest;
 import jakarta.validation.Valid;
-import java.io.IOException;
-import java.io.InputStream;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -63,11 +60,11 @@ public class MeController {
 
     /** Photo URLs contain a random 128-bit name, so they can be loaded by <img> without an auth header. */
     @GetMapping("/api/v1/photos/{name}")
-    public ResponseEntity<InputStreamResource> photo(@PathVariable String name) throws IOException {
-        InputStream in = photos.open(name);
+    public ResponseEntity<byte[]> photo(@PathVariable String name) {
+        PhotoStorage.Stored photo = photos.load(name);
         return ResponseEntity.ok()
-                .contentType(name.endsWith(".png") ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG)
+                .contentType(photo.type())
                 .cacheControl(CacheControl.maxAge(java.time.Duration.ofDays(30)).cachePrivate())
-                .body(new InputStreamResource(in));
+                .body(photo.data());
     }
 }

@@ -60,7 +60,7 @@ public class User extends AuditedEntity {
 
     private Instant lockedUntil;
 
-    /** File name inside app.upload-dir; served at /api/v1/photos/{photoPath}. */
+    /** Name of the row in the photos table; served at /api/v1/photos/{photoPath}. */
     private String photoPath;
 
     private Instant lastLoginAt;

@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -52,6 +53,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Component
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
+@Order(0) // before AdminBootstrap
 public class DevDataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DevDataSeeder.class);

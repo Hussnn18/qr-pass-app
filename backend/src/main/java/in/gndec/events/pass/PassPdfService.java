@@ -8,7 +8,6 @@ import in.gndec.events.user.User;
 import in.gndec.events.venue.Gate;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.util.Comparator;
 import java.util.stream.Collectors;
 import org.openpdf.text.Document;
@@ -114,8 +113,8 @@ public class PassPdfService {
         if (u.getPhotoPath() == null) {
             return null;
         }
-        try (InputStream in = photos.open(u.getPhotoPath())) {
-            return Image.getInstance(in.readAllBytes());
+        try {
+            return Image.getInstance(photos.load(u.getPhotoPath()).data());
         } catch (Exception e) {
             return null;
         }

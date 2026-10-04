@@ -10,6 +10,8 @@ npm run build     # production build in dist/
 
 Set `API_URL` to proxy to a backend elsewhere, e.g. `API_URL=http://192.168.1.20:8080 npm run dev`. With `host: true`, phones on the same Wi-Fi can open the dev server. The camera scanner needs `https://` or `localhost`; otherwise use manual entry.
 
+In production there is no separate frontend host: the root [Dockerfile](../Dockerfile) builds this site and Spring Boot serves it from the same URL as the API (see [DEPLOY.md](../DEPLOY.md)). That's why the client calls relative `/api/v1/...` paths.
+
 ## Layout
 
 | Path | Purpose |

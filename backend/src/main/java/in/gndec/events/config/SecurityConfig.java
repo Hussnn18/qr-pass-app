@@ -53,7 +53,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/manage/**").hasAnyRole("ADMIN", "ORGANIZER")
                         .requestMatchers("/api/v1/scan/**").hasAnyRole("ADMIN", "ORGANIZER", "SECURITY")
-                        .anyRequest().authenticated())
+                        .requestMatchers("/api/**").authenticated()
+                        // Everything else is the website's static files and its client-side routes.
+                        .anyRequest().permitAll())
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter())))
                 .addFilterAfter(new PasswordChangeRequiredFilter(), BearerTokenAuthenticationFilter.class);
         return http.build();
@@ -94,7 +96,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cors = new CorsConfiguration();
-        cors.setAllowedOrigins(List.of(props.frontendOrigin()));
+        cors.setAllowedOrigins(props.frontendOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         cors.setExposedHeaders(List.of("Content-Disposition"));

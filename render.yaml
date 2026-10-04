@@ -1,0 +1,33 @@
+# Render Blueprint: Dashboard → New → Blueprint → this repository. See DEPLOY.md.
+# One web service serves both the website and the API. The database is on Supabase.
+services:
+  - type: web
+    name: gndec-events
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore        # create the Supabase project in Singapore too
+    plan: free               # sleeps after 15 min idle; read DEPLOY.md before event days
+    healthCheckPath: /actuator/health
+    buildFilter:             # documentation-only commits don't trigger a redeploy
+      paths:
+        - Dockerfile
+        - frontend/**
+        - backend/**
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod,postgres
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PASS_KEY        # base64 of 32 random bytes. Never change it once passes exist.
+        generateValue: true
+      - key: DB_URL          # jdbc:postgresql://<Session pooler host>:5432/postgres?sslmode=require
+        sync: false
+      - key: DB_USER         # postgres.<project ref>
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: ADMIN_EMAIL     # first administrator, created on the first start
+        sync: false
+      - key: ADMIN_PASSWORD  # temporary: changed at first sign-in, then delete this variable
+        sync: false

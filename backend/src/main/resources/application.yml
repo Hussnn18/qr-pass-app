@@ -1,9 +1,10 @@
 # Smart Campus Events — backend configuration.
-# Profiles:
+# Profiles to run with:
 #   dev  (default) MySQL on localhost, demo data seeded on first start
 #   supabase       Supabase (hosted PostgreSQL), demo data seeded on first start
 #   h2             in-memory database, demo data seeded — runs without MySQL
-#   prod           every secret must come from environment variables
+#   prod           production: every secret from the environment, no demo data.
+#                  Use "prod,postgres" for Supabase (see DEPLOY.md), plain "prod" for MySQL.
 #
 # Settings such as DB_URL / DB_PASSWORD can be environment variables or lines in backend/.env
 # (git-ignored; see .env.example).
@@ -16,7 +17,7 @@ spring:
     default: dev
     group:
       dev: local
-      supabase: local
+      supabase: [postgres, local]
       h2: local
   jpa:
     open-in-view: false
@@ -40,16 +41,22 @@ server:
   port: ${PORT:8080}
 
 app:
-  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+  # Comma-separated origins allowed to call the API. On Render the site is served from the same URL,
+  # which Render provides as RENDER_EXTERNAL_URL; set FRONTEND_ORIGIN only for a custom domain.
+  frontend-origin: ${FRONTEND_ORIGIN:${RENDER_EXTERNAL_URL:http://localhost:5173}}
   jwt:
     secret: ${JWT_SECRET:}
     access-ttl: 15m
     refresh-ttl: 7d
   pass-key: ${PASS_KEY:}
   cookie-secure: ${COOKIE_SECURE:false}
-  upload-dir: ${UPLOAD_DIR:uploads}
   seed:
     enabled: false
+  # Creates this administrator on start-up when no administrator exists yet (production's first sign-in).
+  bootstrap-admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    name: ${ADMIN_NAME:Portal Administrator}
 
 management:
   endpoints:
@@ -64,7 +71,7 @@ springdoc:
     path: /v3/api-docs
 
 ---
-# Shared by dev and h2: local-only secrets and demo data. Never use these values in production.
+# Shared by dev, supabase and h2: local-only secrets and demo data. Never use these values in production.
 spring:
   config:
     activate:
@@ -87,12 +94,13 @@ spring:
     password: ${DB_PASSWORD:scems_local_dev}
 
 ---
-# Supabase: use the "Session pooler" connection (IPv4, keeps session settings). Tables live in their
-# own schema, not "public", so Supabase's auto-generated REST API does not expose them.
+# PostgreSQL / Supabase layout, used by "supabase" (development) and "prod,postgres" (production).
+# Connect through Supabase's "Session pooler" (IPv4, keeps session settings). Tables live in their own
+# schema, not "public", so Supabase's auto-generated REST API does not expose them.
 spring:
   config:
     activate:
-      on-profile: supabase
+      on-profile: postgres
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}
@@ -125,5 +133,19 @@ spring:
     url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
+server:
+  # Render ends HTTPS at its proxy; trust its X-Forwarded-* headers so requests count as https.
+  forward-headers-strategy: native
+  compression:
+    enabled: true
+    mime-types: text/html,text/css,application/javascript,text/javascript,application/json,image/svg+xml
+  tomcat:
+    threads:
+      max: 50   # small instances; requests beyond the DB pool only queue anyway
 app:
   cookie-secure: true
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
