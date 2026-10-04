@@ -19,6 +19,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -36,6 +38,11 @@ public abstract class IntegrationTest {
 
     @Autowired
     protected RateLimiter rateLimiter;
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.register(registry);
+    }
 
     @BeforeEach
     void cleanDatabase() {

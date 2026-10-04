@@ -453,7 +453,7 @@ public class ManageEventService {
         return new PageResponse<>(items, result.getNumber() + 1, result.getSize(), result.getTotalElements(), Math.max(result.getTotalPages(), 1));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional // not read-only: the export itself is written to the audit log
     public String participantsCsv(Long eventId, String status, String q, String dept, Role type) {
         Event e = managed(eventId);
         List<Registration> regs = registrations.findAll(participantSpec(e.getId(), status, q, dept, type), Sort.by("registeredAt").and(Sort.by("id")));

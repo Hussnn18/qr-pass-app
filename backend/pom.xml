@@ -31,7 +31,21 @@
 		<zxing.version>3.5.4</zxing.version>
 		<openpdf.version>3.0.5</openpdf.version>
 		<springdoc.version>3.1.1</springdoc.version>
+		<embedded-postgres.version>2.2.2</embedded-postgres.version>
+		<!-- Same major version as Supabase -->
+		<embedded-postgres-binaries.version>17.11.0</embedded-postgres-binaries.version>
 	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.zonky.test.postgres</groupId>
+				<artifactId>embedded-postgres-binaries-bom</artifactId>
+				<version>${embedded-postgres-binaries.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -69,6 +83,10 @@
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-mysql</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
 		<!-- QR codes for passes -->
 		<dependency>
 			<groupId>com.google.zxing</groupId>
@@ -101,6 +119,12 @@
 		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<!-- PostgreSQL / Supabase -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
@@ -141,6 +165,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- Real PostgreSQL for `./mvnw test -Ddb=postgres` -->
+		<dependency>
+			<groupId>io.zonky.test</groupId>
+			<artifactId>embedded-postgres</artifactId>
+			<version>${embedded-postgres.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
