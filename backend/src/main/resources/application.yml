@@ -108,6 +108,9 @@ spring:
     hikari:
       schema: ${DB_SCHEMA:scems}
       maximum-pool-size: ${DB_POOL_SIZE:5}   # the free tier allows only a few pooled connections
+      # Keep trying the first connection for up to 2 minutes instead of failing at once. On a 0.1-CPU
+      # instance the JVM's very first TLS handshake can be too slow for Supabase; later ones are fast.
+      initialization-fail-timeout: 120000
   flyway:
     default-schema: ${DB_SCHEMA:scems}
     schemas: ${DB_SCHEMA:scems}

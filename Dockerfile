@@ -24,7 +24,8 @@ RUN useradd --system --uid 10001 --no-create-home app
 WORKDIR /app
 COPY --from=api /src/app.jar app.jar
 USER app
-# Free instances have 512 MB. A 60% heap leaves room for metaspace, threads and buffers beside it.
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -Xss512k -XX:+ExitOnOutOfMemoryError"
+# Free instances have 512 MB and 0.1 CPU. A 60% heap leaves room for metaspace, threads and buffers;
+# the C1-only JIT (TieredStopAtLevel=1) spends far less CPU compiling during start-up.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
