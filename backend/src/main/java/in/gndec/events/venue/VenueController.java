@@ -92,6 +92,35 @@ public class VenueController {
         return dto(v);
     }
 
+    public record CampusLoadResult(int added, int located, int unchanged) {
+    }
+
+    /**
+     * Loads the GNDEC campus places (CampusCatalog) so the campus map works on a fresh database. Safe to run
+     * again: places that already exist (same name) are kept as they are, except that missing coordinates are filled in.
+     */
+    @PostMapping("/api/v1/admin/venues/campus")
+    @Transactional
+    public CampusLoadResult loadCampus() {
+        List<Venue> existing = venues.findAll();
+        int added = 0, located = 0, unchanged = 0;
+        for (CampusCatalog.Place p : CampusCatalog.PLACES) {
+            Venue v = existing.stream().filter(x -> x.getName().trim().equalsIgnoreCase(p.name())).findFirst().orElse(null);
+            if (v == null) {
+                venues.save(p.toVenue());
+                added++;
+            } else if (v.getLatitude() == null || v.getLongitude() == null) {
+                v.setLatitude(p.lat());
+                v.setLongitude(p.lng());
+                located++;
+            } else {
+                unchanged++;
+            }
+        }
+        audit.log("CAMPUS_LOADED", "Venue", null, added + " added · " + located + " located · " + unchanged + " unchanged");
+        return new CampusLoadResult(added, located, unchanged);
+    }
+
     @PutMapping("/api/v1/admin/venues/{id}")
     @Transactional
     public VenueDto update(@PathVariable Long id, @Valid @RequestBody VenueRequest req) {

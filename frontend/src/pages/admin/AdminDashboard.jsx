@@ -65,8 +65,11 @@ export default function AdminDashboard() {
               <Link to="/admin/venues"><i className="bi bi-building me-2" />Venues and entry gates</Link>
               <Link to="/admin/departments"><i className="bi bi-diagram-3 me-2" />Departments</Link>
               <Link to="/scan/history"><i className="bi bi-clock-history me-2" />All scan history</Link>
+              <Link to="/analytics"><i className="bi bi-bar-chart-line me-2" />Analytics dashboard</Link>
+              <Link to="/reports"><i className="bi bi-file-earmark-spreadsheet me-2" />Download reports</Link>
+              <Link to="/admin/audit"><i className="bi bi-journal-text me-2" />Audit log</Link>
+              <Link to="/campus"><i className="bi bi-map me-2" />Campus map</Link>
             </div>
-            <p className="small-2 text-muted-2 mt-3 mb-0">Analytics, reports and the audit-log viewer arrive with objective 5. Audit entries are already being recorded.</p>
           </Panel>
         </Col>
       </Row>

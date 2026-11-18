@@ -38,6 +38,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,10 +87,16 @@ public class ScanService {
     private final EventViews views;
     private final RateLimiter rateLimiter;
     private final AuditService audit;
+    private final LiveFeed liveFeed;
+    private final ApplicationEventPublisher publisher;
+    /** Scans one staff member may make per minute (a busy gate manages about one every 2–3 seconds). */
+    private final int scanRatePerMinute;
 
     public ScanService(EventRepository events, GateRepository gates, PassRepository passes, EntryRepository entries,
             ScanLogRepository logs, SecurityAssignmentRepository assignments, UserRepository users, EventViews views,
-            RateLimiter rateLimiter, AuditService audit) {
+            RateLimiter rateLimiter, AuditService audit, LiveFeed liveFeed, ApplicationEventPublisher publisher,
+            @Value("${app.scan-rate-per-minute:120}") int scanRatePerMinute) {
+        this.scanRatePerMinute = scanRatePerMinute;
         this.events = events;
         this.gates = gates;
         this.passes = passes;
@@ -99,12 +107,14 @@ public class ScanService {
         this.views = views;
         this.rateLimiter = rateLimiter;
         this.audit = audit;
+        this.liveFeed = liveFeed;
+        this.publisher = publisher;
     }
 
     @Transactional
     public VerifyResult verify(VerifyRequest req) {
         Long me = CurrentUser.id();
-        rateLimiter.check("scan:" + me, 120, Duration.ofMinutes(1));
+        rateLimiter.check("scan:" + me, scanRatePerMinute, Duration.ofMinutes(1));
         Event event = events.findById(req.eventId()).orElseThrow(() -> ApiException.notFound("Event"));
         Gate gate = gates.findById(req.gateId()).orElseThrow(() -> ApiException.notFound("Gate"));
         boolean manual = req.qr() == null || req.qr().isBlank();
@@ -207,6 +217,11 @@ public class ScanService {
         log.setDeviceId(ctx.deviceId);
         log.setScannedAt(ctx.now);
         logs.save(log);
+        if (liveFeed.hasSubscribers(ctx.event.getId())) {
+            publisher.publishEvent(new LiveFeed.Published(ctx.event.getId(), new ScanLogView(log.getId(), ctx.now.toEpochMilli(),
+                    result.name(), ctx.method.name(), pass == null ? null : UserMapper.person(pass.getUser()), ctx.event.getId(),
+                    ctx.event.getTitle(), ctx.gate.getName(), users.findById(ctx.scannedBy).map(User::getFullName).orElse(null))));
+        }
         if (ctx.method == Entry.Method.MANUAL) {
             audit.log("MANUAL_ENTRY_" + result.name(), "Pass", pass == null ? null : pass.getId(),
                     (pass == null ? "unknown pass" : pass.getUser().getFullName()) + " at " + ctx.gate.getName());

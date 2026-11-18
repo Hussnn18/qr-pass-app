@@ -1,5 +1,6 @@
 package in.gndec.events.config;
 
+import jakarta.servlet.DispatcherType;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.crypto.SecretKey;
@@ -21,6 +22,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -34,6 +36,24 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /**
+     * Only this site's own scripts run; styles may be inline (React and Leaflet set them); fonts come from Google
+     * Fonts, map tiles from OpenStreetMap; the page can't be framed by other sites.
+     */
+    static final String CONTENT_SECURITY_POLICY = String.join("; ",
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com data:",
+            "img-src 'self' data: blob: https://tile.openstreetmap.org",
+            "connect-src 'self'",
+            "media-src 'self' blob:",
+            "worker-src 'self' blob:",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'");
+
     private final AppProperties props;
 
     public SecurityConfig(AppProperties props) {
@@ -46,7 +66,15 @@ public class SecurityConfig {
                 .csrf(c -> c.disable()) // no cookie-authenticated state-changing endpoints except refresh (SameSite=Strict)
                 .cors(c -> {})
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Browser hardening for the site this server delivers in production (Spring also adds nosniff,
+                // X-Frame-Options and, over HTTPS, HSTS). The referrer is kept so OpenStreetMap serves map tiles.
+                .headers(h -> h
+                        .contentSecurityPolicy(c -> c.policyDirectives(CONTENT_SECURITY_POLICY))
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .permissionsPolicyHeader(p -> p.policy("camera=(self), microphone=(), geolocation=(), payment=(), usb=()")))
                 .authorizeHttpRequests(a -> a
+                        // The live attendance stream finishes on an async dispatch; the request that opened it was already authorised.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/health", "/api/v1/photos/**").permitAll()
                         .requestMatchers("/actuator/health", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()

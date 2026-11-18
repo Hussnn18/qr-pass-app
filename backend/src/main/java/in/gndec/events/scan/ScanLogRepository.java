@@ -26,5 +26,7 @@ public interface ScanLogRepository extends JpaRepository<ScanLog, Long> {
 
     long countByEventId(Long eventId);
 
+    java.util.List<ScanLog> findTop25ByEventIdOrderByScannedAtDescIdDesc(Long eventId);
+
     long countByEventIdAndResult(Long eventId, ScanResult result);
 }

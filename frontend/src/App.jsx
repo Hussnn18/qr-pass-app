@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { PortalLayout, PublicLayout, RequireAuth, RequireRole } from './components/layout/Layouts';
 import Login from './pages/auth/Login';
@@ -19,6 +20,14 @@ import Users from './pages/admin/Users';
 import StudentImport from './pages/admin/StudentImport';
 import Departments from './pages/admin/Departments';
 import Venues from './pages/admin/Venues';
+import { Loading } from './components/ui';
+
+// Map and chart screens (objectives 4–5) load on first visit, keeping the first page light on phones.
+const CampusMapPage = lazy(() => import('./pages/common/CampusMapPage'));
+const Analytics = lazy(() => import('./pages/organizer/Analytics'));
+const Reports = lazy(() => import('./pages/organizer/Reports'));
+const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
+const page = (el) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
 const MANAGERS = ['ORGANIZER', 'ADMIN'];
 const SCANNERS = ['SECURITY', 'ORGANIZER', 'ADMIN'];
@@ -37,6 +46,7 @@ export default function App() {
           <Route path="profile" element={<Profile />} />
           <Route path="events" element={<Events />} />
           <Route path="events/:id" element={<EventDetail />} />
+          <Route path="campus" element={page(<CampusMapPage />)} />
 
           <Route element={<RequireRole roles={['STUDENT', 'GUEST']} />}>
             <Route path="my/registrations" element={<MyRegistrations />} />
@@ -48,6 +58,8 @@ export default function App() {
             <Route path="manage/events/new" element={<EventForm />} />
             <Route path="manage/events/:id" element={<EventManage />} />
             <Route path="manage/events/:id/edit" element={<EventForm />} />
+            <Route path="analytics" element={page(<Analytics />)} />
+            <Route path="reports" element={page(<Reports />)} />
           </Route>
 
           <Route element={<RequireRole roles={SCANNERS} />}>
@@ -63,6 +75,7 @@ export default function App() {
             <Route path="admin/import" element={<StudentImport />} />
             <Route path="admin/departments" element={<Departments />} />
             <Route path="admin/venues" element={<Venues />} />
+            <Route path="admin/audit" element={page(<AuditLog />)} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

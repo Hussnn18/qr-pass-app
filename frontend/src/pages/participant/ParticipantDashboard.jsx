@@ -33,7 +33,10 @@ export default function ParticipantDashboard({ user }) {
             {s && !s.enrolled && <Tag tone="danger" icon="exclamation-triangle">Enrollment inactive</Tag>}
           </div>
         </div>
-        <Button as={Link} to="/events" variant="primary"><i className="bi bi-search me-1" />Find events</Button>
+        <div className="d-flex flex-wrap gap-2">
+          <Button as={Link} to="/campus" variant="outline-primary"><i className="bi bi-map me-1" />Campus map</Button>
+          <Button as={Link} to="/events" variant="primary"><i className="bi bi-search me-1" />Find events</Button>
+        </div>
       </div>
 
       <Row className="g-3 mb-3">

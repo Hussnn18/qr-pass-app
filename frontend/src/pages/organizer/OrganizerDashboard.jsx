@@ -34,7 +34,10 @@ export default function OrganizerDashboard({ user }) {
           <h1>Good to see you, {user.name.replace(/^(Prof|Dr|Mr|Ms)\.?\s+/, '').split(' ')[0]}</h1>
           <div className="kv">{user.unit} · {mine.length} event{mine.length === 1 ? '' : 's'}</div>
         </div>
-        <Button as={Link} to="/manage/events/new" variant="brand"><i className="bi bi-calendar-plus me-1" />Create event</Button>
+        <div className="d-flex flex-wrap gap-2">
+          <Button as={Link} to="/analytics" variant="outline-primary"><i className="bi bi-bar-chart-line me-1" />Analytics</Button>
+          <Button as={Link} to="/manage/events/new" variant="brand"><i className="bi bi-calendar-plus me-1" />Create event</Button>
+        </div>
       </div>
 
       <Row className="g-3 mb-3">

@@ -19,7 +19,7 @@ public final class EventDtos {
     public record NamedRef(Long id, String name) {
     }
 
-    public record VenueRef(Long id, String name, String building, String floor, String description, Integer capacity,
+    public record VenueRef(Long id, String name, String type, String building, String floor, String description, Integer capacity,
             Double lat, Double lng) {
     }
 

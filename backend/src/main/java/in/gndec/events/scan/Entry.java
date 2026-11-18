@@ -24,7 +24,8 @@ import lombok.Setter;
 @Table(name = "entries")
 public class Entry {
 
-    public enum Method { QR, MANUAL }
+    /** QR = camera scan, MANUAL = pass code or URN typed at the gate, OVERRIDE = organizer marked present (objective 4). */
+    public enum Method { QR, MANUAL, OVERRIDE }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,4 +52,7 @@ public class Entry {
 
     @Column(nullable = false)
     private Instant enteredAt;
+
+    /** Required for OVERRIDE entries, empty otherwise. */
+    private String overrideReason;
 }

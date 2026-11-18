@@ -14,6 +14,9 @@ const MENUS = {
         { to: '/my/registrations', label: 'My Registrations', icon: 'card-checklist' },
         { to: '/my/passes', label: 'My Passes', icon: 'qr-code' },
       ] },
+      { label: 'Campus', items: [
+        { to: '/campus', label: 'Campus Map', icon: 'map' },
+      ] },
     ],
     action: { to: '/my/passes', label: 'My Passes', icon: 'qr-code' },
   },
@@ -28,6 +31,11 @@ const MENUS = {
         { to: '/scan', label: 'Open Scanner', icon: 'upc-scan' },
         { to: '/scan/history', label: 'Scan History', icon: 'clock-history' },
       ] },
+      { label: 'Reports', items: [
+        { to: '/analytics', label: 'Analytics Dashboard', icon: 'bar-chart-line' },
+        { to: '/reports', label: 'Download Reports', icon: 'file-earmark-spreadsheet' },
+        { to: '/campus', label: 'Campus Map', icon: 'map' },
+      ] },
     ],
     action: { to: '/manage/events/new', label: 'Create Event', icon: 'calendar-plus' },
   },
@@ -37,6 +45,7 @@ const MENUS = {
         { to: '/scan', label: 'Start Scanning', icon: 'upc-scan' },
         { to: '/scan/assignments', label: 'My Assignments', icon: 'shield-check' },
         { to: '/scan/history', label: 'Scan History', icon: 'clock-history' },
+        { to: '/campus', label: 'Campus Map', icon: 'map' },
       ] },
     ],
     action: { to: '/scan', label: 'Open Scanner', icon: 'upc-scan' },
@@ -48,6 +57,7 @@ const MENUS = {
         { to: '/admin/import', label: 'Student Import', icon: 'file-earmark-arrow-up' },
         { to: '/admin/departments', label: 'Departments', icon: 'diagram-3' },
         { to: '/admin/venues', label: 'Venues & Gates', icon: 'building' },
+        { to: '/admin/audit', label: 'Audit Log', icon: 'journal-text' },
       ] },
       { label: 'Events', items: [
         { to: '/manage/events', label: 'All Events', icon: 'calendar3' },
@@ -55,8 +65,13 @@ const MENUS = {
         { to: '/scan', label: 'Open Scanner', icon: 'upc-scan' },
         { to: '/scan/history', label: 'Scan History', icon: 'clock-history' },
       ] },
+      { label: 'Reports', items: [
+        { to: '/analytics', label: 'Analytics Dashboard', icon: 'bar-chart-line' },
+        { to: '/reports', label: 'Download Reports', icon: 'file-earmark-spreadsheet' },
+        { to: '/campus', label: 'Campus Map', icon: 'map' },
+      ] },
     ],
-    action: { to: '/admin/users?status=LOCKED', label: 'Locked Accounts', icon: 'lock' },
+    action: { to: '/analytics', label: 'Analytics', icon: 'bar-chart-line' },
   },
 };
 MENUS.GUEST = MENUS.STUDENT;

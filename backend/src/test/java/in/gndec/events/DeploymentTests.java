@@ -83,6 +83,18 @@ class DeploymentTests extends IntegrationTest {
     }
 
     @Test
+    void pagesCarryBrowserSecurityHeaders() throws Exception {
+        mvc.perform(get("/manage/events/6")).andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")))
+                .andExpect(header().string("Content-Security-Policy", containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Content-Security-Policy", containsString("https://tile.openstreetmap.org")))
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
+                .andExpect(header().string("Permissions-Policy", containsString("camera=(self)")))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"));
+    }
+
+    @Test
     void theWebsiteIsServedFromTheSameUrl() throws Exception {
         // src/test/resources/static stands in for the React build the Dockerfile copies in.
         mvc.perform(get("/")).andExpect(status().isOk()).andExpect(forwardedUrl("index.html")); // Boot's welcome page

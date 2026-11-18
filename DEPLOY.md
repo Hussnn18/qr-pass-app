@@ -43,7 +43,7 @@ You don't create any tables. The app creates them in its own schema, `scems`, on
 1. Open the service URL, choose **Faculty / Staff**, and sign in with `ADMIN_EMAIL` and the temporary password. You'll be asked to set your own password.
 2. In Render → the service → **Environment**, delete `ADMIN_PASSWORD`. It is only read when no administrator exists.
 3. Set up the college data. The production database starts empty apart from the departments:
-   - **Control Panel → Venues & gates**: add venues and their entry gates.
+   - **Control Panel → Venues & gates**: click **Load GNDEC campus** to add the 18 campus places with their entry gates and map positions, then add or edit venues as needed (click on the map to place one).
    - **Control Panel → Student Import**: upload the student CSV, then download the temporary passwords.
    - **Control Panel → Users**: add organizers and security staff.
 

@@ -21,6 +21,7 @@ import in.gndec.events.user.StudentProfile;
 import in.gndec.events.user.User;
 import in.gndec.events.user.UserRepository;
 import in.gndec.events.venue.Gate;
+import in.gndec.events.venue.CampusCatalog;
 import in.gndec.events.venue.Venue;
 import in.gndec.events.venue.VenueRepository;
 import java.time.Duration;
@@ -30,6 +31,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -175,24 +177,19 @@ public class DevDataSeeder implements ApplicationRunner {
                 .findFirst().ifPresent(u -> u.getProfile().setEnrolled(false));
 
         // ---------------------------------------------------------------- campus (coordinates from OpenStreetMap)
-        venue("Main Gate (Gill Road)", Venue.Type.OTHER, "Security check post", "—", 30.86072, 75.8595, "Main entrance with the security check post and visitor desk.", false, null);
-        venue("Admin Block", Venue.Type.ADMIN, "Admin Block", "G–2", 30.85884, 75.86033, "Principal's office, accounts and the Student Welfare office.", false, null);
-        Venue lib = venue("Central Library", Venue.Type.LIBRARY, "Library Building", "G–1", 30.85832, 75.86034, "Reading halls, e-library and digital resource centre.", true, 60, "Library Foyer");
-        Venue audi = venue("Main Auditorium", Venue.Type.AUDITORIUM, "Auditorium", "G", 30.85888, 75.86074, "Auditorium with stage, projection and sound system.", true, 650, "Gate A (Front)", "Gate B (Side)");
-        Venue cse = venue("CSE Department", Venue.Type.ACADEMIC, "Dept. of Computer Sc. & Engg.", "G–3", 30.85989, 75.86009, "Department of Computer Science & Engineering — classrooms and labs.", true, 120, "Ground Floor Entrance");
-        Venue sem = venue("Seminar Hall (CSE Dept.)", Venue.Type.SEMINAR_HALL, "Dept. of Computer Sc. & Engg.", "1st floor", 30.86008, 75.86024, "Seminar hall with 150 seats, projector and podium.", true, 150, "Main Door");
-        Venue it = venue("IT Department", Venue.Type.ACADEMIC, "Dept. of Information Technology", "G–2", 30.86041, 75.86029, "Department of Information Technology.", true, 100, "Main Entrance");
-        Venue ece = venue("ECE Department", Venue.Type.LAB, "Electronics & Communication Engg.", "G–2", 30.8581, 75.8612, "ECE department with robotics and embedded systems labs.", true, 60, "Lab Entrance");
-        venue("Applied Science Block", Venue.Type.ACADEMIC, "Dept. of Applied Science", "G–2", 30.85869, 75.8617, "Physics, chemistry and English labs.", true, 80, "Main Entrance");
-        venue("Central Workshop", Venue.Type.LAB, "Workshop", "G", 30.85898, 75.86201, "Machine shop, welding and fitting sections.", true, 40, "Workshop Gate");
-        Venue oat = venue("Open Air Theatre", Venue.Type.AUDITORIUM, "OAT", "—", 30.8607, 75.86214, "Open-air stage for cultural evenings and fests.", true, 1200, "Gate 1", "Gate 2");
-        Venue ground = venue("Running / Cricket Ground", Venue.Type.SPORTS, "Athletics ground", "—", 30.85889, 75.86359, "Running track and cricket ground.", true, 3000, "North Gate", "South Gate");
-        Venue complex = venue("Sports Complex", Venue.Type.SPORTS, "Sports Complex", "G", 30.85817, 75.86348, "Indoor courts and sports office.", true, 300, "Main Door");
-        venue("Football Ground", Venue.Type.SPORTS, "Football ground", "—", 30.8606, 75.86155, "Main football ground.", true, 1500, "Pavilion Gate");
-        venue("Day Scholar Canteen", Venue.Type.CAFETERIA, "Canteen", "G", 30.8611, 75.86271, "Main canteen for day scholars.", false, null);
-        venue("College Dispensary", Venue.Type.OTHER, "Dispensary", "G", 30.86146, 75.86115, "First aid and the campus doctor.", false, null);
-        venue("Main Parking", Venue.Type.PARKING, "GNE Boys Parking", "—", 30.85989, 75.85983, "Parking for students and visitors, next to the main gate.", false, null);
-        venue("Testing & Consultancy Cell", Venue.Type.ADMIN, "TCC", "G", 30.85815, 75.86035, "Industry consultancy and testing office; meeting room.", true, 40, "Reception");
+        Map<String, Venue> byName = new HashMap<>();
+        for (CampusCatalog.Place p : CampusCatalog.PLACES) {
+            byName.put(p.name(), venues.save(p.toVenue()));
+        }
+        Venue lib = byName.get("Central Library");
+        Venue audi = byName.get("Main Auditorium");
+        Venue cse = byName.get("CSE Department");
+        Venue sem = byName.get("Seminar Hall (CSE Dept.)");
+        Venue it = byName.get("IT Department");
+        Venue ece = byName.get("ECE Department");
+        Venue oat = byName.get("Open Air Theatre");
+        Venue ground = byName.get("Running / Cricket Ground");
+        Venue complex = byName.get("Sports Complex");
         venues.flush();
 
         // ---------------------------------------------------------------- events
@@ -421,24 +418,6 @@ public class DevDataSeeder implements ApplicationRunner {
         p.setDob(LocalDate.of(batch - 18, 1 + rand.nextInt(12), 1 + rand.nextInt(27)));
         u.attachProfile(p);
         return u;
-    }
-
-    private Venue venue(String name, Venue.Type type, String building, String floor, double lat, double lng, String description,
-            boolean canHost, Integer capacity, String... gateNames) {
-        Venue v = new Venue();
-        v.setName(name);
-        v.setType(type);
-        v.setBuilding(building);
-        v.setFloor(floor);
-        v.setLatitude(lat);
-        v.setLongitude(lng);
-        v.setDescription(description);
-        v.setCanHostEvents(canHost);
-        v.setCapacity(capacity);
-        for (String g : gateNames) {
-            v.addGate(g);
-        }
-        return venues.save(v);
     }
 
     private Event event(String title, Event.Category category, Venue venue, Instant start, Instant end, Instant regOpens,

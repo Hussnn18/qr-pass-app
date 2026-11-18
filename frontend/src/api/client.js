@@ -58,7 +58,7 @@ export function refreshSession() {
  * api('/me/photo', { method: 'POST', form: formData })
  * api('/passes/1/pdf', { raw: true })    → the fetch Response (for files)
  */
-export async function api(path, { method = 'GET', body: json, form, raw = false, retry = true } = {}) {
+export async function api(path, { method = 'GET', body: json, form, raw = false, retry = true, signal } = {}) {
   const headers = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   let payload;
@@ -69,8 +69,9 @@ export async function api(path, { method = 'GET', body: json, form, raw = false,
   }
   let res;
   try {
-    res = await fetch(`/api/v1${path}`, { method, headers, body: payload, credentials: 'same-origin' });
-  } catch {
+    res = await fetch(`/api/v1${path}`, { method, headers, body: payload, credentials: 'same-origin', signal });
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e;
     throw new ApiError(0, { detail: "Can't reach the server. Check that the backend is running and you're online." });
   }
   if (res.status === 401 && retry && !path.startsWith('/auth/')) {
@@ -81,7 +82,7 @@ export async function api(path, { method = 'GET', body: json, form, raw = false,
       emit({ type: 'expired' });
       throw new ApiError(401, { detail: 'Your session has ended. Please sign in again.' });
     }
-    return api(path, { method, body: json, form, raw, retry: false });
+    return api(path, { method, body: json, form, raw, retry: false, signal });
   }
   if (!res.ok) {
     const data = await body(res);
@@ -107,6 +108,69 @@ export async function download(path, fallbackName) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Listens to a Server-Sent Events stream such as the live attendance feed. EventSource can't send the
+ * Authorization header, so the stream is read with fetch. It reconnects after a drop, and when the server
+ * ends the stream (every 10 minutes) the next connection gets a fresh token. Returns a function that stops it.
+ * onStatus receives 'live', 'reconnecting' or 'stopped'.
+ */
+export function subscribe(path, onEvent, onStatus = () => {}) {
+  let stopped = false;
+  let controller = null;
+  let delay = 1000;
+  const dispatch = (block) => {
+    let name = 'message';
+    const data = [];
+    block.split('\n').forEach((line) => {
+      if (line.startsWith('event:')) name = line.slice(6).trim();
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+    });
+    if (!data.length) return; // comments (heartbeats) carry no data
+    try {
+      onEvent(name, JSON.parse(data.join('\n')));
+    } catch {
+      // ignore a malformed message rather than drop the stream
+    }
+  };
+  (async () => {
+    while (!stopped) {
+      controller = new AbortController();
+      try {
+        const res = await api(path, { raw: true, signal: controller.signal });
+        onStatus('live');
+        delay = 1000;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf = (buf + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n');
+          let i;
+          while ((i = buf.indexOf('\n\n')) >= 0) {
+            dispatch(buf.slice(0, i));
+            buf = buf.slice(i + 2);
+          }
+        }
+      } catch (e) {
+        if (stopped) return;
+        if (e instanceof ApiError && [401, 403, 404].includes(e.status)) {
+          onStatus('stopped');
+          return;
+        }
+      }
+      if (stopped) return;
+      onStatus('reconnecting');
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 15000);
+    }
+  })();
+  return () => {
+    stopped = true;
+    controller?.abort();
+  };
 }
 
 /** Builds a query string, skipping empty values. */

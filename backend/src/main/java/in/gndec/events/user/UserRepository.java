@@ -19,6 +19,10 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     long countByRole(Role role);
 
+    /** Ids of people whose name, e-mail or URN contains the text (lower-case). */
+    @Query("select u.id from User u left join u.profile p where lower(u.fullName) like :like or lower(u.email) like :like or p.urn like :like")
+    List<Long> findIdsMatching(String like, org.springframework.data.domain.Pageable page);
+
     long countByStatus(User.Status status);
 
     @Query("select u from User u join fetch u.profile p where u.role = in.gndec.events.user.Role.STUDENT and u.status = in.gndec.events.user.User.Status.ACTIVE and p.enrolled = true")

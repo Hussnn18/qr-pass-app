@@ -30,6 +30,7 @@
 		<java.version>21</java.version>
 		<zxing.version>3.5.4</zxing.version>
 		<openpdf.version>3.0.5</openpdf.version>
+		<fastexcel.version>0.20.2</fastexcel.version>
 		<springdoc.version>3.1.1</springdoc.version>
 		<embedded-postgres.version>2.2.2</embedded-postgres.version>
 		<!-- Same major version as Supabase -->
@@ -98,11 +99,17 @@
 			<artifactId>javase</artifactId>
 			<version>${zxing.version}</version>
 		</dependency>
-		<!-- Pass PDF -->
+		<!-- Pass PDF and PDF reports -->
 		<dependency>
 			<groupId>com.github.librepdf</groupId>
 			<artifactId>openpdf</artifactId>
 			<version>${openpdf.version}</version>
+		</dependency>
+		<!-- Excel reports: a small streaming writer (Apache POI would need far more memory on a 512 MB server) -->
+		<dependency>
+			<groupId>org.dhatim</groupId>
+			<artifactId>fastexcel</artifactId>
+			<version>${fastexcel.version}</version>
 		</dependency>
 		<!-- Swagger UI at /swagger-ui.html -->
 		<dependency>
@@ -165,6 +172,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- Reads generated Excel reports back in tests -->
+		<dependency>
+			<groupId>org.dhatim</groupId>
+			<artifactId>fastexcel-reader</artifactId>
+			<version>${fastexcel.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<!-- Real PostgreSQL for `./mvnw test -Ddb=postgres` -->

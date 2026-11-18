@@ -1,4 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react';
+import { Link } from 'react-router-dom';
 import { fmtDate, fmtTime } from '../utils/format';
 import { Avatar, StatusBadge } from './ui';
 
@@ -29,7 +30,7 @@ export default function PassCard({ pass, actions, qrSize = 148 }) {
           <dl className="pass-facts">
             <dt>Date</dt><dd>{fmtDate(ev.startsAt)}</dd>
             <dt>Time</dt><dd>{fmtTime(ev.startsAt)} – {fmtTime(ev.endsAt)}</dd>
-            <dt>Venue</dt><dd>{ev.venueName}</dd>
+            <dt>Venue</dt><dd>{ev.venueName}{ev.venueId && <Link to={`/campus?place=${ev.venueId}`} className="small-2 ms-2 d-print-none"><i className="bi bi-map me-1" aria-hidden="true" />Find it</Link>}</dd>
             {ev.gates?.length > 0 && <><dt>Entry</dt><dd>{ev.gates.join(', ')}</dd></>}
             {pass.entry && <><dt>Entered</dt><dd>{fmtTime(pass.entry.at)} · {pass.entry.gateName}</dd></>}
           </dl>

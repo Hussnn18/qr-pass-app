@@ -160,7 +160,7 @@ public class EventViews {
     }
 
     public static VenueRef venue(Venue v) {
-        return new VenueRef(v.getId(), v.getName(), v.getBuilding(), v.getFloor(), v.getDescription(), v.getCapacity(),
+        return new VenueRef(v.getId(), v.getName(), v.getType().name(), v.getBuilding(), v.getFloor(), v.getDescription(), v.getCapacity(),
                 v.getLatitude(), v.getLongitude());
     }
 

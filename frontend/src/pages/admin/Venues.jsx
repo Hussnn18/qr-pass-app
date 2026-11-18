@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Alert, Button, Col, Form, InputGroup, Modal, Row, Table } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useApi } from '../../api/useApi';
 import { VENUE_TYPES } from '../../data/constants';
 import { useTitle } from '../../utils/hooks';
 import { ErrorState, Loading, PageHeader, Panel, Tag } from '../../components/ui';
-import { attempt, confirmDialog } from '../../components/feedback';
+import { attempt, confirmDialog, toast } from '../../components/feedback';
+
+const CampusMap = lazy(() => import('../../components/CampusMap'));
+const round = (n) => Math.round(n * 1e6) / 1e6;
 
 function VenueModal({ venue, onHide, onSaved }) {
   const isNew = !venue.id;
@@ -39,7 +43,19 @@ function VenueModal({ venue, onHide, onSaved }) {
             <Col md={3}><Form.Group controlId="v-floor"><Form.Label>Floor</Form.Label><Form.Control value={f.floor} onChange={set('floor')} /></Form.Group></Col>
             <Col md={3}><Form.Group controlId="v-cap"><Form.Label>Capacity</Form.Label><Form.Control type="number" min={1} value={f.capacity} onChange={set('capacity')} placeholder="optional" /></Form.Group></Col>
             <Col xs={12}><Form.Group controlId="v-desc"><Form.Label>Description</Form.Label><Form.Control as="textarea" rows={2} value={f.description} onChange={set('description')} maxLength={500} /></Form.Group></Col>
-            <Col md={6}><Form.Group controlId="v-lat"><Form.Label>Latitude <span className="text-muted-2 fw-normal">(for the campus map, objective 4)</span></Form.Label><Form.Control value={f.lat} onChange={set('lat')} className="mono" placeholder="30.8598" /></Form.Group></Col>
+            <Col xs={12}>
+              <Form.Label className="mb-1">Position on the campus map</Form.Label>
+              <div className="position-relative">
+                <span className="map-hint">Click the map to place the pin, or drag it</span>
+                <Suspense fallback={<div className="campus-map d-grid small text-muted-2" style={{ height: 260, placeItems: 'center' }}>Loading map…</div>}>
+                  <CampusMap places={[]} height={260} zoom={17}
+                    draft={f.lat !== '' && f.lng !== '' && !Number.isNaN(Number(f.lat)) ? { id: 'draft', type: f.type, lat: Number(f.lat), lng: Number(f.lng) } : null}
+                    onMapClick={({ lat, lng }) => setF((x) => ({ ...x, lat: round(lat), lng: round(lng) }))}
+                    onDragEnd={({ lat, lng }) => setF((x) => ({ ...x, lat: round(lat), lng: round(lng) }))} />
+                </Suspense>
+              </div>
+            </Col>
+            <Col md={6}><Form.Group controlId="v-lat"><Form.Label>Latitude</Form.Label><Form.Control value={f.lat} onChange={set('lat')} className="mono" placeholder="30.8598" /></Form.Group></Col>
             <Col md={6}><Form.Group controlId="v-lng"><Form.Label>Longitude</Form.Label><Form.Control value={f.lng} onChange={set('lng')} className="mono" placeholder="75.8607" /></Form.Group></Col>
             <Col xs={12}><Form.Check type="switch" id="v-host" label="Can host events (appears in the event venue list)" checked={f.canHostEvents} onChange={set('canHostEvents')} /></Col>
           </Row>
@@ -83,7 +99,7 @@ function GateEditor({ venue, onChange }) {
   );
 }
 
-/** Venues and entry gates (O1-02, O1-03). The interactive campus map comes with objective 4. */
+/** Venues and entry gates (O1-02, O1-03), with their positions on the campus map (objective 4). */
 export default function Venues() {
   useTitle('Venues & gates');
   const res = useApi('/admin/venues');
@@ -93,6 +109,18 @@ export default function Venues() {
   const toggleActive = async (v) => {
     if (await attempt(() => api(`/admin/venues/${v.id}/active`, { method: 'PATCH', body: { active: !v.active } }), v.active ? 'Venue deactivated.' : 'Venue activated.')) res.reload();
   };
+  const loadCampus = async () => {
+    if (!(await confirmDialog({
+      title: 'Load the GNDEC campus?',
+      message: 'Adds the 18 standard campus places (blocks, auditoriums, grounds, canteen, library…) with map positions and entry gates. Venues that already exist with the same name are kept; missing map positions are filled in.',
+      confirmText: 'Load campus',
+    }))) return;
+    const r = await attempt(() => api('/admin/venues/campus', { method: 'POST' }));
+    if (r) {
+      toast.success(`${r.added} added · ${r.located} placed on the map · ${r.unchanged} already there.`, 'Campus loaded');
+      res.reload();
+    }
+  };
   const remove = async (v) => {
     if (!(await confirmDialog({ title: `Delete ${v.name}?`, message: 'Only venues that no event has ever used can be deleted.', confirmText: 'Delete', variant: 'danger' }))) return;
     if ((await attempt(() => api(`/admin/venues/${v.id}`, { method: 'DELETE' }), 'Venue deleted.')) !== undefined) res.reload();
@@ -101,7 +129,7 @@ export default function Venues() {
   return (
     <>
       <PageHeader title="Venues & gates" crumbs={[{ label: 'Control panel' }]} subtitle="Places where events happen and the gates where passes are scanned."
-        actions={<Button variant="brand" onClick={() => setEditing({})}><i className="bi bi-plus-lg me-1" />Add venue</Button>} />
+        actions={<><Button variant="light" as={Link} to="/campus"><i className="bi bi-map me-1" />View map</Button><Button variant="outline-primary" onClick={loadCampus}><i className="bi bi-buildings me-1" />Load GNDEC campus</Button><Button variant="brand" onClick={() => setEditing({})}><i className="bi bi-plus-lg me-1" />Add venue</Button></>} />
       <Panel flush>
         {res.error && !res.data ? <ErrorState error={res.error} onRetry={res.reload} /> : !res.data ? <Loading /> : (
           <Table hover responsive className="mb-0 align-middle table-stack">
@@ -110,7 +138,7 @@ export default function Venues() {
               {res.data.map((v) => (
                 <tr key={v.id}>
                   <td className="td-main">
-                    <div className="fw-600">{v.name}</div>
+                    <div className="fw-600">{v.name} {v.lat != null ? <i className="bi bi-geo-alt-fill text-success small" title="On the campus map" aria-label="On the campus map" /> : <span className="small-2 text-muted-2 fw-normal">· not on map</span>}</div>
                     <div className="small-2 text-muted-2">{[v.building, v.floor && v.floor !== '—' ? `Floor ${v.floor}` : null].filter(Boolean).join(' · ')}</div>
                     {open === v.id && <div className="mt-2"><GateEditor venue={v} onChange={res.reload} /></div>}
                   </td>

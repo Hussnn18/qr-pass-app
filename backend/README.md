@@ -37,6 +37,7 @@ Settings can be environment variables or `KEY=value` lines in `backend/.env` (gi
 | `FRONTEND_ORIGIN` | `RENDER_EXTERNAL_URL`, else `http://localhost:5173` | sites allowed to call the API, comma-separated; set it only for a custom domain |
 | `COOKIE_SECURE` | `false` (`true` in `prod`) | HTTPS-only refresh cookie |
 | `SEED_DEMO_DATA` | `true` | load demo data in dev |
+| `app.scan-rate-per-minute` | `120` | scans one staff member may make per minute; raise it only for the load test |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | unset | create the first administrator when none exists; the password must be changed at first sign-in |
 | `PORT` | `8080` | HTTP port |
 
@@ -45,7 +46,7 @@ Generate production secrets with `openssl rand -base64 48` (JWT) and `openssl ra
 ## Build and run
 
 ```bash
-./mvnw test                     # 35 integration tests on H2
+./mvnw test                     # 49 integration tests on H2
 ./mvnw test -Ddb=postgres       # the same tests on a real embedded PostgreSQL 17
 ./mvnw package                  # target/smart-campus-events-0.0.1-SNAPSHOT.jar
 java -jar target/smart-campus-events-0.0.1-SNAPSHOT.jar --spring.profiles.active=h2
@@ -56,12 +57,15 @@ java -jar target/smart-campus-events-0.0.1-SNAPSHOT.jar --spring.profiles.active
 | Package | Contents |
 |---|---|
 | `config` | security (JWT resource server, role rules, forced password change), OpenAPI, scheduling |
-| `common` | errors (`ApiException` → RFC 7807 with a `code`), audit log, rate limiter, paging, CSV |
+| `common` | errors (`ApiException` → RFC 7807 with a `code`), audit log and its viewer, rate limiter, paging, CSV |
 | `auth` | login, refresh-token rotation with reuse detection, logout |
 | `user` | users, student profiles, departments, admin user management, bulk import, photos |
-| `venue` | venues and gates |
+| `venue` | venues and gates, the GNDEC campus catalogue and the campus map endpoint |
 | `event` | events, eligibility, organizer management, admin summary |
 | `registration` | register, cancel, approve/reject, waitlist promotion (event row lock + conditional seat claim) |
 | `pass` | pass issue/reissue, QR PNG, PDF |
-| `scan` | security assignments, gate verification, entries, scan log |
+| `scan` | security assignments, gate verification, entries, scan log, live feed (Server-Sent Events) |
+| `attendance` | attendance from entries, attendee lists, manual corrections (objective 4) |
+| `analytics` | dashboard figures for a date range (objective 5) |
+| `report` | report building and CSV / Excel / PDF writing (objective 5) |
 | `seed` | demo data for `dev` / `h2` |

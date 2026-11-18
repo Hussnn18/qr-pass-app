@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Button, Col, Nav, Row } from 'react-bootstrap';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -11,6 +12,9 @@ import { EmptyState, Loading, ModeBadge, PageHeader, Panel, StatTile, StatusBadg
 import { attempt } from '../../components/feedback';
 import { EventActionsMenu } from './ManageEvents';
 import RegistrationsTab from './RegistrationsTab';
+
+// Charts and the live feed load only when the tab is opened.
+const AttendanceTab = lazy(() => import('./AttendanceTab'));
 
 function Overview({ ev }) {
   return (
@@ -41,7 +45,7 @@ function Overview({ ev }) {
             <dt>Cancelled</dt><dd>{ev.stats.cancelled}</dd>
             <dt>Entered</dt><dd>{ev.stats.entered}</dd>
           </dl>
-          <p className="small-2 text-muted-2 mt-2 mb-0">Attendance reports and charts come with objective 4–5.</p>
+          <Button size="sm" variant="outline-primary" className="mt-2" as={Link} to={`/manage/events/${ev.id}?tab=attendance`}><i className="bi bi-clipboard-check me-1" />Attendance and reports</Button>
         </Panel>
       </Col>
     </Row>
@@ -84,7 +88,7 @@ function GatesTab({ ev, reload }) {
   );
 }
 
-const TABS = [['overview', 'Overview', 'info-circle'], ['registrations', 'Registrations', 'people'], ['gates', 'Gates & security', 'door-open']];
+const TABS = [['overview', 'Overview', 'info-circle'], ['registrations', 'Registrations', 'people'], ['attendance', 'Attendance', 'clipboard-check'], ['gates', 'Gates & security', 'door-open']];
 
 export default function EventManage() {
   const { id } = useParams();
@@ -111,7 +115,7 @@ export default function EventManage() {
         <Col xs={6} md={3}><StatTile icon="check-circle" label="Confirmed" value={`${st.confirmed}/${st.capacity}`} hint={`${pct(st.confirmed, st.capacity)}% full`} tone="success" /></Col>
         <Col xs={6} md={3}><StatTile icon="hourglass-split" label="Pending" value={st.pending} tone="warning" to={`/manage/events/${ev.id}?tab=registrations`} /></Col>
         <Col xs={6} md={3}><StatTile icon="list-ol" label="Waitlisted" value={st.waitlisted} tone="info" /></Col>
-        <Col xs={6} md={3}><StatTile icon="door-open" label="Entered" value={st.entered} hint={st.confirmed ? `${pct(st.entered, st.confirmed)}% of confirmed` : null} tone="brand" /></Col>
+        <Col xs={6} md={3}><StatTile icon="door-open" label="Entered" value={st.entered} hint={st.confirmed ? `${pct(st.entered, st.confirmed)}% of confirmed` : null} tone="brand" to={`/manage/events/${ev.id}?tab=attendance`} /></Col>
       </Row>
       <Nav variant="tabs" activeKey={tab} onSelect={(k) => setParams({ tab: k })} className="mb-3">
         {TABS.map(([k, label, icon]) => (
@@ -121,6 +125,7 @@ export default function EventManage() {
       {tab === 'overview' && <Overview ev={ev} />}
       {tab === 'registrations' && <RegistrationsTab ev={ev} onChange={res.reload} />}
       {tab === 'gates' && <GatesTab ev={ev} reload={res.reload} />}
+      {tab === 'attendance' && <Suspense fallback={<Loading />}><AttendanceTab ev={ev} onChange={res.reload} /></Suspense>}
     </>
   );
 }

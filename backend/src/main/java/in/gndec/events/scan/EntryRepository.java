@@ -15,6 +15,23 @@ public interface EntryRepository extends JpaRepository<Entry, Long> {
 
     long countByEventId(Long eventId);
 
+    List<Entry> findByEventId(Long eventId);
+
+    @Query("select e.enteredAt from Entry e where e.eventId in :eventIds")
+    List<Instant> findEntryTimes(Collection<Long> eventIds);
+
+    @Query("select e.gateId, count(e) from Entry e where e.eventId in :eventIds group by e.gateId")
+    List<Object[]> countByGates(Collection<Long> eventIds);
+
+    /** event id, department code, semester, entries — for department- and semester-wise attendance. */
+    @Query("""
+            select e.eventId, p.departmentCode, p.semester, count(e)
+              from Entry e join Registration r on r.id = e.registrationId join r.user u left join u.profile p
+             where e.eventId in :eventIds
+             group by e.eventId, p.departmentCode, p.semester
+            """)
+    List<Object[]> countByEventDepartmentSemester(Collection<Long> eventIds);
+
     long countByEventIdAndGateId(Long eventId, Long gateId);
 
     long countByEnteredAtAfter(Instant after);

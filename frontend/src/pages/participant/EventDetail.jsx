@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -11,6 +11,8 @@ import { downloadText, eventToICS } from '../../utils/files';
 import { useTitle } from '../../utils/hooks';
 import { CategoryChip, Countdown, EmptyState, Loading, ModeBadge, Panel, SeatsBar, StatusBadge, Tag } from '../../components/ui';
 import { attempt, confirmDialog } from '../../components/feedback';
+
+const CampusMap = lazy(() => import('../../components/CampusMap'));
 
 function Steps({ reg }) {
   const steps = [{ label: 'Registered', sub: fmtDateTime(reg.registeredAt), state: 'done' }];
@@ -227,12 +229,20 @@ export default function EventDetail() {
               {v.building && <div className="fw-600">{v.building}</div>}
               {v.floor && v.floor !== '—' && <div className="text-muted-2 mb-2">Floor: {v.floor}</div>}
               {v.description && <p>{v.description}</p>}
-              {v.lat != null && (
-                <Button size="sm" variant="primary" href={`https://www.google.com/maps/dir/?api=1&destination=${v.lat},${v.lng}`} target="_blank" rel="noreferrer">
-                  <i className="bi bi-signpost-split me-1" />Directions
-                </Button>
-              )}
             </div>
+            {v.lat != null && (
+              <>
+                <Suspense fallback={<div className="mini-map campus-map d-grid small text-muted-2" style={{ placeItems: 'center' }}>Loading map…</div>}>
+                  <CampusMap places={[{ ...v, type: v.type || 'OTHER' }]} selectedId={v.id} height={220} zoom={17} className="mb-2" />
+                </Suspense>
+                <div className="d-flex flex-wrap gap-2">
+                  <Button size="sm" variant="primary" href={`https://www.google.com/maps/dir/?api=1&destination=${v.lat},${v.lng}&travelmode=walking`} target="_blank" rel="noreferrer">
+                    <i className="bi bi-signpost-split me-1" />Walking directions
+                  </Button>
+                  <Button size="sm" variant="light" as={Link} to={`/campus?place=${v.id}`}><i className="bi bi-map me-1" />Open campus map</Button>
+                </div>
+              </>
+            )}
           </Panel>
         </Col>
 

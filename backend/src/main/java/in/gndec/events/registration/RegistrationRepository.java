@@ -43,6 +43,25 @@ public interface RegistrationRepository extends JpaRepository<Registration, Long
 
     long countByStatus(Registration.Status status);
 
+    @Query("select r from Registration r join fetch r.user u left join fetch u.profile where r.event.id = :eventId and r.status = in.gndec.events.registration.Registration.Status.CONFIRMED")
+    List<Registration> findConfirmedWithProfiles(Long eventId);
+
+    /** Registrations of these events with their students' profiles, for reports. */
+    @Query("select r from Registration r join fetch r.user u left join fetch u.profile join fetch r.event e where e.id in :eventIds order by r.registeredAt, r.id")
+    List<Registration> findForReport(Collection<Long> eventIds);
+
+    /** event id, status, department code, semester, count — for analytics. */
+    @Query("""
+            select r.event.id, r.status, p.departmentCode, p.semester, count(r)
+              from Registration r join r.user u left join u.profile p
+             where r.event.id in :eventIds
+             group by r.event.id, r.status, p.departmentCode, p.semester
+            """)
+    List<Object[]> countByEventStatusDepartmentSemester(Collection<Long> eventIds);
+
+    @Query("select r.registeredAt from Registration r where r.event.id in :eventIds")
+    List<Instant> findRegistrationTimes(Collection<Long> eventIds);
+
     /** Event cancelled: every pending, confirmed or waitlisted registration is cancelled with the organizer's reason. */
     @Modifying(flushAutomatically = true)
     @Query("update Registration r set r.status = in.gndec.events.registration.Registration.Status.CANCELLED, r.reason = :reason, r.decidedAt = :now where r.event.id = :eventId and r.status in (in.gndec.events.registration.Registration.Status.PENDING, in.gndec.events.registration.Registration.Status.CONFIRMED, in.gndec.events.registration.Registration.Status.WAITLISTED)")

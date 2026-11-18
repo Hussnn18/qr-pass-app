@@ -33,16 +33,16 @@ export const MODES = {
 };
 
 export const VENUE_TYPES = {
-  ACADEMIC: { label: 'Academic block', icon: 'building' },
-  ADMIN: { label: 'Administrative', icon: 'bank' },
-  LAB: { label: 'Lab / Workshop', icon: 'gear' },
-  AUDITORIUM: { label: 'Auditorium', icon: 'easel' },
-  SEMINAR_HALL: { label: 'Seminar hall', icon: 'mic' },
-  LIBRARY: { label: 'Library', icon: 'book' },
-  SPORTS: { label: 'Sports', icon: 'trophy' },
-  CAFETERIA: { label: 'Cafeteria', icon: 'cup-hot' },
-  PARKING: { label: 'Parking', icon: 'p-square' },
-  OTHER: { label: 'Other', icon: 'geo-alt' },
+  ACADEMIC: { label: 'Academic block', icon: 'building', color: '#262a7a' },
+  ADMIN: { label: 'Administrative', icon: 'bank', color: '#5f6672' },
+  LAB: { label: 'Lab / Workshop', icon: 'gear', color: '#5b3f99' },
+  AUDITORIUM: { label: 'Auditorium', icon: 'easel', color: '#9b1c1c' },
+  SEMINAR_HALL: { label: 'Seminar hall', icon: 'mic', color: '#b45309' },
+  LIBRARY: { label: 'Library', icon: 'book', color: '#0f6f86' },
+  SPORTS: { label: 'Sports', icon: 'trophy', color: '#1f7a4d' },
+  CAFETERIA: { label: 'Cafeteria', icon: 'cup-hot', color: '#a16207' },
+  PARKING: { label: 'Parking', icon: 'p-square', color: '#475569' },
+  OTHER: { label: 'Other', icon: 'geo-alt', color: '#7b8190' },
 };
 
 export const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -90,6 +90,15 @@ export const SCAN_RESULTS = {
   INVALID_TOKEN: { tone: 'danger', icon: 'question-octagon-fill', title: 'Pass not found' },
   INVALID_FORMAT: { tone: 'danger', icon: 'qr-code', title: 'Not an event pass' },
   NOT_ASSIGNED: { tone: 'danger', icon: 'shield-x', title: 'Not assigned here' },
+  // Not a scan result: an organizer removed a wrongly recorded entry (live attendance feed).
+  REMOVED: { tone: 'secondary', icon: 'person-dash-fill', title: 'Marked absent' },
+};
+
+/** How an entry was recorded. */
+export const ENTRY_METHODS = {
+  QR: { label: 'QR scan', icon: 'qr-code-scan' },
+  MANUAL: { label: 'Code typed', icon: 'keyboard' },
+  OVERRIDE: { label: 'Marked by organizer', icon: 'person-check' },
 };
 
 /** Development only: seeded accounts (password "demo") shown on the login page. */
